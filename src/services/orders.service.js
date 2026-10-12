@@ -2,7 +2,7 @@ import ordersRepo from '../repositories/orders.repo.js';
 import usersRepo from '../repositories/users.repo.js';
 import AppError from '../utils/errors.js';
 import config from '../config/config.js';
-import { ORDER_STATUS, DELIVERY_PRIORITY } from '../constants/constants.js';
+import { NODE_ENVS, ORDER_STATUS, DELIVERY_PRIORITY } from '../constants/constants.js';
 
 export function calculateShippingCost({ isProduction, shipmentValue, apiKey }) {
     
@@ -45,7 +45,7 @@ class OrdersService {
 
         const declaredValue = orderData.declaredValue || itemsTotal;
         const shippingCost = calculateShippingCost({
-            isProduction: config.nodeEnv === 'production',
+            isProduction: config.nodeEnv === NODE_ENVS.PRODUCTION,
             shipmentValue: declaredValue,
             apiKey: config.jwtSecret
         });

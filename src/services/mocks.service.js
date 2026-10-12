@@ -5,6 +5,7 @@ import AppError from '../utils/errors.js';
 import config from '../config/config.js';
 import { calculateShippingCost } from './orders.service.js';
 import {
+    NODE_ENVS,
     USER_ROLES,
     ORDER_STATUS,
     DELIVERY_STATUS,
@@ -72,7 +73,7 @@ class MocksService {
         const itemsTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
         // misma regla de costo de envío que usa el alta real de pedidos
         const shippingCost = calculateShippingCost({
-            isProduction: config.nodeEnv === 'production',
+            isProduction: config.nodeEnv === NODE_ENVS.PRODUCTION,
             shipmentValue: itemsTotal,
             apiKey: config.jwtSecret
         });

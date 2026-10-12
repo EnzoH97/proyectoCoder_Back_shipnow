@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { NODE_ENVS } from "../constants/constants.js"
 
 dotenv.config();
 
@@ -18,7 +19,7 @@ const config = {
     port: parseInt(process.env.PORT, 10) || 8080,
     mongoUri: process.env.MONGODB_URI,
     jwtSecret: process.env.JWT_SECRET,
-    nodeEnv: process.env.NODE_ENV || 'development',
+    nodeEnv: process.env.NODE_ENV || NODE_ENVS.DEVELOPMENT,
     logLevel: process.env.LOG_LEVEL || 'debug'
 };
 

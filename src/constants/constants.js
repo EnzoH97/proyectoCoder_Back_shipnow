@@ -1,3 +1,8 @@
+export const NODE_ENVS = Object.freeze({
+    DEVELOPMENT: 'development',
+    PRODUCTION: 'production'
+});
+
 export const USER_ROLES = Object.freeze({
     ADMIN: 'admin',
     CUSTOMER: 'customer',
