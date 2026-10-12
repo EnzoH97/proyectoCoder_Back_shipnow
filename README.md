@@ -29,7 +29,7 @@ shipnow/
 │   ├── config/
 │   │   └── config.js               # Lectura y validación de variables de entorno
 │   ├── constants/
-│   │   └── constants.js            # Roles, estados, prioridades y límites del mocking
+│   │   └── constants.js            # Roles, estados, prioridades, entornos y límites del mocking
 │   ├── models/                     # Esquemas de Mongoose (user, order, delivery)
 │   ├── repositories/               # Acceso a datos (users, orders, deliveries)
 │   ├── services/                   # Lógica de negocio (users, orders, deliveries, mocks)
@@ -68,7 +68,7 @@ Los roles, estados y prioridades salen siempre de las constantes (`USER_ROLES`, 
 
 ```bash
 # 1. Clonar el repositorio
-git clone <URL_DEL_REPOSITORIO>
+git clone https://github.com/EnzoH97/proyectoCoder_Back_shipnow
 cd shipnow
 
 # 2. Instalar dependencias
@@ -104,7 +104,7 @@ Copiá `.env.example` a `.env` y completá los valores. El archivo `.env` no se 
 | `MONGODB_URI` | Sí | URI de conexión, por ejemplo `mongodb://localhost:27017/shipnow` |
 | `JWT_SECRET` | Sí | Secreto de la aplicación |
 | `PORT` | No | Puerto del servidor (por defecto `8080`) |
-| `NODE_ENV` | No | `development` o `production` (por defecto `development`). En `production` el costo de envío se calcula como `50 + 1%` del valor declarado; en otros entornos es `10` |
+| `NODE_ENV` | No | `development` o `production` (por defecto `development`) |
 | `LOG_LEVEL` | No | Nivel de logs (por defecto `debug`) |
 
 Si falta una variable obligatoria, la app no arranca y muestra un mensaje indicando cuál.
