@@ -24,7 +24,7 @@ Arquitectura por capas: `routes → controllers → services → repositories �
 ```
 shipnow/
 ├── src/
-│   ├── app.js                      # Configuración de Express, middlewares y manejo de errores
+│   ├── app.js                      # Configuración de Express; registra el manejo de errores al final
 │   ├── server.js                   # Conexión a MongoDB y arranque del servidor
 │   ├── config/
 │   │   └── config.js               # Lectura y validación de variables de entorno
@@ -35,8 +35,11 @@ shipnow/
 │   ├── services/                   # Lógica de negocio (users, orders, deliveries, mocks)
 │   ├── controllers/                # Reciben la request y responden (users, orders, deliveries, mocks)
 │   ├── routes/                     # Routers de Express (users, orders, deliveries, mocks)
+│   ├── middlewares/
+│   │   ├── errorHandler.js         # Middleware global: único lugar que responde errores
+│   │   └── routeNotFound.js        # Deriva las rutas inexistentes al errorHandler
 │   └── utils/
-│       ├── errors.js               # Clase AppError
+│       ├── errors.js               # ErrorDictionary (diccionario de errores) y clase AppError
 │       └── mockData.js             # Datos base y helpers de azar para el mocking
 ├── .env.example                    # Ejemplo de variables de entorno
 ├── .gitignore
@@ -111,7 +114,7 @@ Si falta una variable obligatoria, la app no arranca y muestra un mensaje indica
 
 ## 6. Endpoints
 
-Las respuestas exitosas tienen la forma `{ "status": "success", "payload": ... }`. Los errores tienen la forma `{ "status": "error", "message": "..." }`.
+Las respuestas exitosas tienen la forma `{ "status": "success", "payload": ... }`. Los errores siempre tienen la misma estructura (ver [7. Manejo de errores](#7-manejo-de-errores)).
 
 ### General
 
@@ -133,13 +136,13 @@ Los tres recursos tienen el mismo CRUD:
 
 Reglas de negocio:
 
-- **Usuarios:** el email es único y no se puede crear un usuario con rol `admin` desde este endpoint.
-- **Pedidos:** el cliente debe existir y tener al menos un item. Se calculan `declaredValue`, `shippingCost` y `total`, y el pedido se crea en estado `created`.
-- **Entregas:** el pedido debe existir y, si se indica un repartidor, debe tener rol `driver`.
+- **Usuarios:** el email es único, el rol debe ser uno de los válidos y no se puede crear un usuario con rol `admin` desde este endpoint.
+- **Pedidos:** el cliente debe existir y el pedido debe tener al menos un item válido (cantidad entera ≥ 1, precio ≥ 0). El estado y la prioridad deben ser valores permitidos. Se calculan `declaredValue`, `shippingCost` y `total`, y el pedido se crea en estado `created`.
+- **Entregas:** el pedido debe existir y, si se indica un repartidor, debe existir y tener rol `driver`. El estado y la prioridad deben ser valores permitidos.
 
 ### Mocking (`/api/mocks`)
 
-Parámetro `qty`: cantidad a generar. Por defecto **5**, mínimo 1 y máximo **100**. Si no es válido, responde `400`.
+Parámetro `qty`: cantidad a generar. Por defecto **5**, mínimo 1 y máximo **100**. Si no es válido responde `400` con un código que indica el motivo (`QTY_NOT_INTEGER`, `QTY_NEGATIVE` o `QTY_OUT_OF_RANGE`). Lo mismo aplica a `users`, `drivers` y `orders` en `/dataset`.
 
 #### Datos simulados sin guardar (GET)
 
@@ -197,7 +200,7 @@ Invoke-RestMethod -Method Post "http://localhost:8080/api/mocks/seed?qty=10"
 
 Con `collection=all` la respuesta trae el detalle de cada colección dentro de `resultados`.
 
-Orden recomendado para cargar por partes: `users` → `drivers` → `orders` → `deliveries`. Si falta una dependencia (por ejemplo, no hay clientes para crear pedidos), responde `400` con un mensaje que indica qué cargar primero.
+Orden recomendado para cargar por partes: `users` → `drivers` → `orders` → `deliveries`. Si falta una dependencia (por ejemplo, no hay clientes para crear pedidos), responde `409` con un mensaje que indica qué cargar primero. Si MongoDB falla durante la carga, responde `500` con el código `MOCK_SEED_FAILED`.
 
 #### Relaciones que se respetan
 
@@ -221,3 +224,142 @@ Orden recomendado para cargar por partes: `users` → `drivers` → `orders` →
 - Los usuarios de prueba tienen la contraseña `Mock1234` y emails `@test.com`. La API guarda las contraseñas tal cual vienen (sin hash).
 - El seed agrega datos, no borra nada. Para empezar de cero se puede eliminar la base desde Mongo (`db.dropDatabase()`).
 - El límite de 100 por request evita llenar la base por error.
+
+## 7. Manejo de errores
+
+Todos los errores de la API pasan por una capa común, formada por tres piezas:
+
+| Pieza | Archivo | Qué hace |
+| --- | --- | --- |
+| Diccionario de errores | `src/utils/errors.js` (`ErrorDictionary`) | Define cada error del dominio con su `statusCode` HTTP, su `code` y su `message` |
+| Error personalizado | `src/utils/errors.js` (`AppError`) | Se crea con una entrada del diccionario: `new AppError(ErrorDictionary.USER_NOT_FOUND)` |
+| Middleware global | `src/middlewares/errorHandler.js` | Convierte cualquier error en la respuesta HTTP uniforme |
+
+Cómo fluye un error:
+
+```
+service detecta el problema → throw new AppError(...) → controller (catch → next(error)) → errorHandler → respuesta JSON
+```
+
+- Los **services** detectan los errores (usuario inexistente, estado inválido, cantidad incorrecta, etc.) y los lanzan.
+- Los **controllers** y **routers** no arman respuestas de error: solo hacen `next(error)`.
+- El **errorHandler** es el único lugar que responde un error al cliente. También traduce errores de Mongoose y de Express (id mal formado, validación del modelo, email duplicado, JSON inválido) al mismo formato.
+- Cualquier error no previsto responde `500` con un mensaje genérico. El detalle interno solo se muestra en la consola del servidor.
+
+### Estructura de la respuesta de error
+
+Todas las respuestas de error tienen exactamente estos campos:
+
+```json
+{
+  "status": "error",
+  "code": "QTY_NEGATIVE",
+  "message": "La cantidad no puede ser negativa",
+  "details": [
+    { "field": "qty", "received": "-5", "min": 1 }
+  ]
+}
+```
+
+| Campo | Descripción |
+| --- | --- |
+| `status` | Siempre `"error"` |
+| `code` | Código estable del error (clave del diccionario), pensado para que lo use un cliente |
+| `message` | Descripción legible |
+| `details` | Arreglo con información adicional (campo, valor recibido, valores permitidos). Es `[]` si no hay nada que agregar |
+
+### Errores definidos
+
+| Código | HTTP | Cuándo ocurre |
+| --- | --- | --- |
+| `ROUTE_NOT_FOUND` | 404 | La ruta no existe |
+| `INVALID_ID` | 400 | El id no tiene formato válido |
+| `INVALID_JSON` | 400 | El cuerpo de la petición no es un JSON válido |
+| `VALIDATION_ERROR` | 400 | Falló la validación del modelo (faltan campos obligatorios, etc.) |
+| `DUPLICATE_KEY` | 409 | Se viola un índice único |
+| `INTERNAL_SERVER_ERROR` | 500 | Error inesperado |
+| `CONFIG_ERROR` | 500 | Falta configuración necesaria (API Key) |
+| `USER_NOT_FOUND` | 404 | El usuario no existe |
+| `ADMIN_CREATION_FORBIDDEN` | 403 | Se intenta crear un `admin` desde la API |
+| `EMAIL_ALREADY_EXISTS` | 409 | El email ya está registrado |
+| `INVALID_USER_ROLE` | 400 | El rol no es uno de los permitidos |
+| `ORDER_NOT_FOUND` | 404 | El pedido no existe |
+| `CUSTOMER_NOT_FOUND` | 404 | El cliente del pedido no existe |
+| `ORDER_WITHOUT_ITEMS` | 400 | El pedido no tiene items |
+| `INVALID_ORDER_ITEMS` | 400 | Algún item tiene nombre vacío, cantidad inválida o precio negativo |
+| `INVALID_ORDER_STATUS` | 400 | El estado del pedido no es válido |
+| `INVALID_PRIORITY` | 400 | La prioridad no es válida |
+| `DELIVERY_NOT_FOUND` | 404 | La entrega no existe |
+| `DRIVER_NOT_FOUND` | 404 | El repartidor indicado no existe |
+| `USER_NOT_DRIVER` | 400 | El usuario indicado no tiene rol `driver` |
+| `INVALID_DELIVERY_STATUS` | 400 | El estado de la entrega no es válido |
+| `QTY_NOT_INTEGER` | 400 | Mocks: la cantidad no es un número entero |
+| `QTY_NEGATIVE` | 400 | Mocks: la cantidad es negativa |
+| `QTY_OUT_OF_RANGE` | 400 | Mocks: la cantidad es 0 o supera el máximo (100) |
+| `INVALID_MOCK_COLLECTION` | 400 | Mocks: el valor de `collection` no existe |
+| `NO_CUSTOMERS_FOR_MOCK` | 409 | Mocks: se piden pedidos y no hay clientes cargados |
+| `NO_PENDING_ORDERS_FOR_MOCK` | 409 | Mocks: se piden entregas y no hay pedidos sin entrega |
+| `NO_DRIVERS_FOR_MOCK` | 409 | Mocks: se piden entregas y no hay repartidores cargados |
+| `MOCK_SEED_FAILED` | 500 | Mocks: falló la carga en MongoDB |
+
+### Cómo probar los casos inválidos
+
+Con el servidor levantado (`npm run dev`), probá estas peticiones. En PowerShell, `try/catch` permite ver el cuerpo del error; si usás `curl`, agregá `-i` para ver también el código HTTP.
+
+**Mocks**
+
+| Caso | Petición | Respuesta esperada |
+| --- | --- | --- |
+| Cantidad no numérica | `GET /api/mocks/users?qty=abc` | 400 `QTY_NOT_INTEGER` |
+| Cantidad decimal | `GET /api/mocks/users?qty=2.5` | 400 `QTY_NOT_INTEGER` |
+| Cantidad negativa | `GET /api/mocks/users?qty=-5` | 400 `QTY_NEGATIVE` |
+| Cantidad cero | `GET /api/mocks/users?qty=0` | 400 `QTY_OUT_OF_RANGE` |
+| Cantidad excesiva | `GET /api/mocks/users?qty=500` | 400 `QTY_OUT_OF_RANGE` |
+| Valor negativo en dataset | `GET /api/mocks/dataset?orders=-1` | 400 `QTY_NEGATIVE` |
+| Colección inexistente | `POST /api/mocks/seed?collection=foo` | 400 `INVALID_MOCK_COLLECTION` |
+| Seed con cantidad negativa | `POST /api/mocks/seed?qty=-3` | 400 `QTY_NEGATIVE` |
+| Pedidos sin clientes (base vacía) | `POST /api/mocks/seed?collection=orders` | 409 `NO_CUSTOMERS_FOR_MOCK` |
+| Entregas sin pedidos | `POST /api/mocks/seed?collection=deliveries` | 409 `NO_PENDING_ORDERS_FOR_MOCK` |
+| Falla de MongoDB | Detené MongoDB y ejecutá `POST /api/mocks/seed?qty=5` | 500 `MOCK_SEED_FAILED` |
+
+**Usuarios, pedidos y entregas**
+
+| Caso | Petición | Respuesta esperada |
+| --- | --- | --- |
+| Ruta inexistente | `GET /api/nada` | 404 `ROUTE_NOT_FOUND` |
+| Id mal formado | `GET /api/users/abc` | 400 `INVALID_ID` |
+| Usuario inexistente | `GET /api/users/000000000000000000000000` | 404 `USER_NOT_FOUND` |
+| Pedido inexistente | `GET /api/orders/000000000000000000000000` | 404 `ORDER_NOT_FOUND` |
+| Entrega inexistente | `GET /api/deliveries/000000000000000000000000` | 404 `DELIVERY_NOT_FOUND` |
+| JSON mal formado | `POST /api/users` con cuerpo `{malformado` | 400 `INVALID_JSON` |
+| Crear un admin | `POST /api/users` con `{"role":"admin", ...}` | 403 `ADMIN_CREATION_FORBIDDEN` |
+| Rol inválido | `POST /api/users` con `{"role":"superman", ...}` | 400 `INVALID_USER_ROLE` |
+| Faltan datos obligatorios | `POST /api/users` con `{"email":"a@a.com"}` | 400 `VALIDATION_ERROR` |
+| Pedido sin items | `POST /api/orders` con `"items": []` | 400 `ORDER_WITHOUT_ITEMS` |
+| Pedido con precio negativo | `POST /api/orders` con un item con `"price": -5` | 400 `INVALID_ORDER_ITEMS` |
+| Estado de pedido inválido | `PUT /api/orders/:id` con `{"status":"volando"}` | 400 `INVALID_ORDER_STATUS` |
+| Repartidor que no es `driver` | `POST /api/deliveries` con un `driver` de rol `customer` | 400 `USER_NOT_DRIVER` |
+
+Ejemplos en PowerShell:
+
+```powershell
+# error de mocks: cantidad negativa
+try { Invoke-RestMethod "http://localhost:8080/api/mocks/users?qty=-5" } catch { $_.ErrorDetails.Message }
+
+# error de seed: colección inexistente
+try { Invoke-RestMethod -Method Post "http://localhost:8080/api/mocks/seed?collection=foo" } catch { $_.ErrorDetails.Message }
+
+# JSON mal formado
+try { Invoke-RestMethod -Method Post "http://localhost:8080/api/users" -ContentType "application/json" -Body '{malformado' } catch { $_.ErrorDetails.Message }
+
+# intentar crear un admin
+try { Invoke-RestMethod -Method Post "http://localhost:8080/api/users" -ContentType "application/json" -Body '{"firstName":"A","lastName":"B","email":"a@b.com","password":"x","role":"admin"}' } catch { $_.ErrorDetails.Message }
+```
+
+Ejemplos con curl:
+
+```bash
+curl -i "http://localhost:8080/api/mocks/users?qty=-5"
+curl -i -X POST "http://localhost:8080/api/mocks/seed?collection=foo"
+curl -i "http://localhost:8080/api/users/abc"
+```
