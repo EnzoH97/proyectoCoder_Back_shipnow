@@ -60,6 +60,7 @@ export const ORDER_STATUS_BY_DELIVERY_STATUS = Object.freeze({
 // Módulo de mocking
 export const MOCK_LIMITS = Object.freeze({
     DEFAULT_QTY: 5,
+    MIN_QTY: 1,
     MAX_QTY: 100
 });
 

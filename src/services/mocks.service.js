@@ -1,7 +1,7 @@
 import usersRepo from '../repositories/users.repo.js';
 import ordersRepo from '../repositories/orders.repo.js';
 import deliveriesRepo from '../repositories/deliveries.repo.js';
-import AppError from '../utils/errors.js';
+import AppError, { ErrorDictionary } from '../utils/errors.js';
 import config from '../config/config.js';
 import { calculateShippingCost } from './orders.service.js';
 import {
@@ -32,17 +32,32 @@ import {
 const MOCK_ROLES = [USER_ROLES.CUSTOMER, USER_ROLES.DRIVER, USER_ROLES.STORE];
 
 class MocksService {
-
+    
     // ---------- validación ----------
 
-    normalizeQty(rawQty) {
+    normalizeQty(rawQty, field = 'qty') {
         if (rawQty === undefined || rawQty === '') {
             return MOCK_LIMITS.DEFAULT_QTY;
         }
-        const qty = Number(rawQty);
+
+        const isScalar = typeof rawQty === 'string' || typeof rawQty === 'number';
+        const qty = isScalar ? Number(rawQty) : NaN;
+        const received = { field, received: rawQty };
+
         if (!Number.isInteger(qty) || qty < 1 || qty > MOCK_LIMITS.MAX_QTY) {
-            throw new AppError(`qty debe ser un entero entre 1 y ${MOCK_LIMITS.MAX_QTY}`, 400);
+            throw new AppError(ErrorDictionary.QTY_NOT_INTEGER, [received]);
         }
+
+        if (qty < 0) {
+            throw new AppError(ErrorDictionary.QTY_NEGATIVE, [{ ...received, min: MOCK_LIMITS.MIN_QTY }]);
+        }
+
+        if (qty < MOCK_LIMITS.MIN_QTY || qty > MOCK_LIMITS.MAX_QTY) {
+            throw new AppError(ErrorDictionary.QTY_OUT_OF_RANGE, [
+                { ...received, min: MOCK_LIMITS.MIN_QTY, max: MOCK_LIMITS.MAX_QTY }
+            ]);
+        }
+
         return qty;
     }
 
@@ -176,17 +191,38 @@ class MocksService {
 
     getDataset(query = {}) {
         return this.buildDataset({
-            users: this.normalizeQty(query.users),
-            drivers: this.normalizeQty(query.drivers),
-            orders: this.normalizeQty(query.orders)
+            users: this.normalizeQty(query.users, 'users'),
+            drivers: this.normalizeQty(query.drivers, 'drivers'),
+            orders: this.normalizeQty(query.orders, 'orders')
         });
     }
 
     // ---------- seed (guarda en MongoDB) ----------
 
     async seed(collection = MOCK_COLLECTIONS.USERS, rawQty) {
+        const allowed = Object.values(MOCK_COLLECTIONS);
+        if (!allowed.includes(collection)) {
+            throw new AppError(ErrorDictionary.INVALID_MOCK_COLLECTION, [
+                { field: 'collection', received: collection, allowed }
+            ]);
+        }
+
         const qty = this.normalizeQty(rawQty);
 
+        try {
+            return await this.runSeed(collection, qty);
+        } catch (error) {
+            // los errores del dominio pasan tal cual; cualquier falla de MongoDB se informa como falla del seed
+            if (error instanceof AppError) {
+                throw error;
+            }
+            throw new AppError(ErrorDictionary.MOCK_SEED_FAILED, [
+                { collection, reason: error.message }
+            ]);
+        }
+    }
+
+    async runSeed(collection, qty) {
         switch (collection) {
             case MOCK_COLLECTIONS.USERS:
                 return this.seedUsers(qty);
@@ -196,11 +232,9 @@ class MocksService {
                 return this.seedOrders(qty);
             case MOCK_COLLECTIONS.DELIVERIES:
                 return this.seedDeliveries(qty);
-            case MOCK_COLLECTIONS.ALL:
-                return this.seedAll(qty);
             default:
-                throw new AppError(`collection inválida. Opciones: ${Object.values(MOCK_COLLECTIONS).join(', ')}`, 400);
-        }
+                return this.seedAll(qty);
+        
     }
 
     async seedUsers(qty) {
@@ -217,7 +251,7 @@ class MocksService {
     async seedOrders(qty) {
         const customers = await usersRepo.findAll({ role: USER_ROLES.CUSTOMER });
         if (customers.length === 0) {
-            throw new AppError('No hay clientes en la base. Primero ejecutá el seed de usuarios', 400);
+            throw new AppError(ErrorDictionary.NO_CUSTOMERS_FOR_MOCK);
         }
 
         const orders = Array.from({ length: qty }, () => {
@@ -234,11 +268,11 @@ class MocksService {
     async seedDeliveries(qty) {
         const pendingOrders = await ordersRepo.findAll({ status: ORDER_STATUS.CREATED, delivery: null });
         if (pendingOrders.length === 0) {
-            throw new AppError('No hay pedidos sin entrega. Primero ejecutá el seed de pedidos', 400);
+            throw new AppError(ErrorDictionary.NO_PENDING_ORDERS_FOR_MOCK);
         }
         const drivers = await usersRepo.findAll({ role: USER_ROLES.DRIVER });
         if (drivers.length === 0) {
-            throw new AppError('No hay repartidores en la base. Primero ejecutá el seed de repartidores', 400);
+            throw new AppError(ErrorDictionary.NO_DRIVERS_FOR_MOCK);
         }
 
         const driverIds = drivers.map((d) => d._id);
@@ -265,7 +299,6 @@ class MocksService {
         return { insertados: inserted.length, coleccion: MOCK_COLLECTION_LABELS[MOCK_COLLECTIONS.DELIVERIES] };
     }
 
-    // Todo en orden: usuarios -> repartidores -> pedidos -> entregas
     async seedAll(qty) {
         const resultados = [];
         resultados.push(await this.seedUsers(qty));
@@ -274,6 +307,7 @@ class MocksService {
         resultados.push(await this.seedDeliveries(qty));
         return { coleccion: MOCK_COLLECTION_LABELS[MOCK_COLLECTIONS.ALL], resultados };
     }
+}
 }
 
 export default new MocksService();
