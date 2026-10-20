@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import apiRouter from './routes/index.js';
+import routeNotFound from './middlewares/routeNotFound.js'
+import errorHandler from './middlewares/errorHandler.js';
 
 const app = express();
 
@@ -14,20 +16,9 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// rutas no matcheadas
-app.use((req, res) => {
-    res.status(404).json({ status: 'error', message: 'Ruta no encontrada' });
-});
 
-// errores pasados con next(err)
-app.use((err, req, res, next) => {
-    const statusCode = err.statusCode || 500;
-    const message = err.message || 'Error interno del servidor';
-    
-    res.status(statusCode).json({
-        status: 'error',
-        message
-    });
-});
+//primero rutas no encontradas, después el manejador global de errores
+app.use(routeNotFound);
+app.use(errorHandler);
 
 export default app;
