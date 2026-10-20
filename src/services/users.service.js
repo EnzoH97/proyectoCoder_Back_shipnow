@@ -1,5 +1,5 @@
 import usersRepo from '../repositories/users.repo.js';
-import AppError from '../utils/errors.js';
+import AppError, { ErrorDictionary } from '../utils/errors.js';
 import { USER_ROLES } from '../constants/constants.js';
 
 class UsersService {
@@ -12,31 +12,35 @@ class UsersService {
 		const user = await usersRepo.findById(id);
 		
 		if (!user) {
-			throw new AppError('Usuario no encontrado', 404);
+			throw new AppError(ErrorDictionary.USER_NOT_FOUND);
 		}
 		
 		return user;
 	}
 	
 	async create(userData) {
+		this.validateRole(userData.role);
+
 		if (userData.role === USER_ROLES.ADMIN) {
-			throw new AppError('No se puede crear un admin desde este endpoint', 403);
+			throw new AppError(ErrorDictionary.ADMIN_CREATION_FORBIDDEN);
 		}
 
 		const existingUser = await usersRepo.findByEmail(userData.email);
 
 		if (existingUser) {
-			throw new AppError('Ya existe un usuario con ese email', 400);
+			throw new AppError(ErrorDictionary.EMAIL_ALREADY_EXISTS, [{ field: 'email', received: userData.email }]);
 		}
-
-		const newUser = await usersRepo.create(userData);
-		return newUser;
+		
+		return usersRepo.create(userData);
 	}
 
 	async update(id, userData) {
+		this.validateRole(userData.role);
+
 		const updatedUser = await usersRepo.update(id, userData);
+
 		if (!updatedUser) {
-			throw new AppError('Usuario no encontrado', 404);
+			throw new AppError(ErrorDictionary.USER_NOT_FOUND);
 		}
 		return updatedUser;
 	}
@@ -46,10 +50,19 @@ class UsersService {
 		const deletedUser = await usersRepo.delete(id);
     
 		if (!deletedUser) {
-			throw new AppError('Usuario no encontrado', 404);
+			throw new AppError(ErrorDictionary.USER_NOT_FOUND);
 		}
+
 		return deletedUser;
 	}
+
+	validateRole(role) {
+        if (role !== undefined && !Object.values(USER_ROLES).includes(role)) {
+            throw new AppError(ErrorDictionary.INVALID_USER_ROLE, [
+                { field: 'role', received: role, allowed: Object.values(USER_ROLES) }
+            ]);
+        }
+    }
 }
 
 export default new UsersService();

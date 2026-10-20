@@ -1,8 +1,8 @@
 import deliveriesRepo from '../repositories/deliveries.repo.js';
 import ordersRepo from '../repositories/orders.repo.js';
 import usersRepo from '../repositories/users.repo.js';
-import AppError from '../utils/errors.js';
-import { USER_ROLES } from '../constants/constants.js';
+import AppError, { ErrorDictionary } from '../utils/errors.js';
+import { USER_ROLES, DELIVERY_STATUS, DELIVERY_PRIORITY } from '../constants/constants.js';
 
 class DeliveriesService {
     async findAll(filter = {}) {
@@ -12,37 +12,42 @@ class DeliveriesService {
     async findById(id) {
         const delivery = await deliveriesRepo.findById(id);
         if (!delivery) {
-            throw new AppError('Entrega no encontrada', 404);
+            throw new AppError(ErrorDictionary.DELIVERY_NOT_FOUND);
         }
         return delivery;
     }
     
     async create(deliveryData) {
+        this.validateStatus(deliveryData.status);
+        this.validatePriority(deliveryData.priority);
+
         const order = await ordersRepo.findById(deliveryData.order);
         if (!order) {
-            throw new AppError('El pedido especificado no existe', 400);
+            throw new AppError(ErrorDictionary.ORDER_NOT_FOUND);
         }
         if (deliveryData.driver) {
             const driver = await usersRepo.findById(deliveryData.driver);
             
             if (!driver) {
-                throw new AppError('El repartidor especificado no existe', 400);
+                throw new AppError(ErrorDictionary.DRIVER_NOT_FOUND);
             }
             
             if (driver.role !== USER_ROLES.DRIVER) {
-                throw new AppError('El usuario no es driver', 400);
+                throw new AppError(ErrorDictionary.USER_NOT_DRIVER);
             }
         }
         
-        const newDelivery = await deliveriesRepo.create(deliveryData);
-        return newDelivery;
+        return deliveriesRepo.create(deliveryData);
     }
 
     async update(id, deliveryData) {
+        this.validateStatus(deliveryData.status);
+        this.validatePriority(deliveryData.priority);
+
         const updatedDelivery = await deliveriesRepo.update(id, deliveryData);
         
         if (!updatedDelivery) {
-            throw new AppError('Entrega no encontrada', 404);
+            throw new AppError(ErrorDictionary.DELIVERY_NOT_FOUND);
         }
         
         return updatedDelivery;
@@ -52,9 +57,27 @@ class DeliveriesService {
         const deletedDelivery = await deliveriesRepo.delete(id);
         
         if (!deletedDelivery) {
-            throw new AppError('Entrega no encontrada', 404);
+            throw new AppError(ErrorDictionary.DELIVERY_NOT_FOUND);
         }
         return deletedDelivery;
+    }
+
+     // ---------- validaciones del dominio ----------
+
+    validateStatus(status) {
+        if (status !== undefined && !Object.values(DELIVERY_STATUS).includes(status)) {
+            throw new AppError(ErrorDictionary.INVALID_DELIVERY_STATUS, [
+                { field: 'status', received: status, allowed: Object.values(DELIVERY_STATUS) }
+            ]);
+        }
+    }
+
+    validatePriority(priority) {
+        if (priority !== undefined && !Object.values(DELIVERY_PRIORITY).includes(priority)) {
+            throw new AppError(ErrorDictionary.INVALID_PRIORITY, [
+                { field: 'priority', received: priority, allowed: Object.values(DELIVERY_PRIORITY) }
+            ]);
+        }
     }
 }
 
