@@ -44,7 +44,7 @@ class MocksService {
         const qty = isScalar ? Number(rawQty) : NaN;
         const received = { field, received: rawQty };
 
-        if (!Number.isInteger(qty) || qty < 1 || qty > MOCK_LIMITS.MAX_QTY) {
+        if (!Number.isInteger(qty)) {
             throw new AppError(ErrorDictionary.QTY_NOT_INTEGER, [received]);
         }
 
@@ -234,7 +234,7 @@ class MocksService {
                 return this.seedDeliveries(qty);
             default:
                 return this.seedAll(qty);
-        
+        }
     }
 
     async seedUsers(qty) {
@@ -307,7 +307,6 @@ class MocksService {
         resultados.push(await this.seedDeliveries(qty));
         return { coleccion: MOCK_COLLECTION_LABELS[MOCK_COLLECTIONS.ALL], resultados };
     }
-}
 }
 
 export default new MocksService();
