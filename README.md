@@ -4,6 +4,8 @@
 
 ShipNow es una API REST para gestionar envíos. Permite administrar **usuarios** (clientes, repartidores, tiendas y administradores), **pedidos** y **entregas**, y está organizada por capas para separar responsabilidades.
 
+Registra lo que ocurre en el servidor con un **logger centralizado (Winston)**, con niveles, archivos de log y rotación (ver [8. Logging y monitoreo](#8-logging-y-monitoreo)).
+
 Incluye un **módulo de mocking** (`/api/mocks`) que genera datos simulados (usuarios, repartidores, pedidos y entregas) y permite cargarlos en MongoDB de forma controlada, sin tener que crearlos a mano. Los datos respetan los modelos reales, las relaciones entre entidades y las constantes del proyecto (roles, estados y prioridades).
 
 ## 2. Tecnologías utilizadas
@@ -15,6 +17,8 @@ Incluye un **módulo de mocking** (`/api/mocks`) que genera datos simulados (usu
 | MongoDB + Mongoose 8 | Base de datos y modelado |
 | dotenv | Variables de entorno |
 | cors | Habilitar peticiones desde otros orígenes |
+| winston | Logger centralizado con niveles de log |
+| winston-daily-rotate-file | Archivos de log con rotación diaria |
 | nodemon | Reinicio automático en desarrollo |
 
 ## 3. Estructura del proyecto
@@ -32,15 +36,18 @@ shipnow/
 │   │   └── constants.js            # Roles, estados, prioridades, entornos y límites del mocking
 │   ├── models/                     # Esquemas de Mongoose (user, order, delivery)
 │   ├── repositories/               # Acceso a datos (users, orders, deliveries)
-│   ├── services/                   # Lógica de negocio (users, orders, deliveries, mocks)
-│   ├── controllers/                # Reciben la request y responden (users, orders, deliveries, mocks)
-│   ├── routes/                     # Routers de Express (users, orders, deliveries, mocks)
+│   ├── services/                   # Lógica de negocio (users, orders, deliveries, mocks, logger)
+│   ├── controllers/                # Reciben la request y responden (users, orders, deliveries, mocks, logger)
+│   ├── routes/                     # Routers de Express (users, orders, deliveries, mocks, logger)
 │   ├── middlewares/
-│   │   ├── errorHandler.js         # Middleware global: único lugar que responde errores
+│   │   ├── errorHandler.js         # Middleware global: único lugar que responde errores (y los registra en el log)
+│   │   ├── requestLogger.js        # Registra cada petición HTTP (nivel http)
 │   │   └── routeNotFound.js        # Deriva las rutas inexistentes al errorHandler
 │   └── utils/
 │       ├── errors.js               # ErrorDictionary (diccionario de errores) y clase AppError
+│       ├── logger.js               # Configuración única de Winston (niveles, formato, consola, archivos y rotación)
 │       └── mockData.js             # Datos base y helpers de azar para el mocking
+├── logs/                           # Archivos de log generados por la app (se ignoran en Git, solo se versiona .gitkeep)
 ├── .env.example                    # Ejemplo de variables de entorno
 ├── .gitignore
 ├── package.json
@@ -108,9 +115,9 @@ Copiá `.env.example` a `.env` y completá los valores. El archivo `.env` no se 
 | `JWT_SECRET` | Sí | Secreto de la aplicación |
 | `PORT` | No | Puerto del servidor (por defecto `8080`) |
 | `NODE_ENV` | No | `development` o `production` (por defecto `development`) |
-| `LOG_LEVEL` | No | Nivel de logs (por defecto `debug`) |
+| `LOG_LEVEL` | No | Nivel mínimo de log: `fatal`, `error`, `warning`, `info`, `http` o `debug`. Si no se define: `debug` en `development` e `info` en `production` |
 
-Si falta una variable obligatoria, la app no arranca y muestra un mensaje indicando cuál.
+Si falta una variable obligatoria, la app no arranca: registra un log `fatal` indicando cuál falta y termina.
 
 ## 6. Endpoints
 
@@ -121,6 +128,7 @@ Las respuestas exitosas tienen la forma `{ "status": "success", "payload": ... }
 | Método | Ruta | Descripción |
 | --- | --- | --- |
 | GET | `/api/health` | Estado del servidor |
+| GET | `/api/logger/test` | Herramienta interna: genera un log de cada nivel para probar el logger (ver [8. Logging y monitoreo](#8-logging-y-monitoreo)) |
 
 ### Usuarios, pedidos y entregas
 
@@ -322,6 +330,73 @@ Con el servidor levantado (`npm run dev`), probá estas peticiones. En PowerShel
 | Entregas sin pedidos | `POST /api/mocks/seed?collection=deliveries` | 409 `NO_PENDING_ORDERS_FOR_MOCK` |
 | Falla de MongoDB | Detené MongoDB y ejecutá `POST /api/mocks/seed?qty=5` | 500 `MOCK_SEED_FAILED` |
 
+**Respuestas de ejemplo (mocks)**
+
+Cantidad negativa: `GET /api/mocks/users?qty=-5` responde `400`:
+
+```json
+{
+  "status": "error",
+  "code": "QTY_NEGATIVE",
+  "message": "La cantidad no puede ser negativa",
+  "details": [
+    { "field": "qty", "received": "-5", "min": 1 }
+  ]
+}
+```
+
+Cantidad no numérica: `GET /api/mocks/users?qty=abc` responde `400`:
+
+```json
+{
+  "status": "error",
+  "code": "QTY_NOT_INTEGER",
+  "message": "La cantidad debe ser un número entero",
+  "details": [
+    { "field": "qty", "received": "abc" }
+  ]
+}
+```
+
+Cantidad mayor al límite: `GET /api/mocks/users?qty=500` responde `400`:
+
+```json
+{
+  "status": "error",
+  "code": "QTY_OUT_OF_RANGE",
+  "message": "La cantidad está fuera del rango permitido",
+  "details": [
+    { "field": "qty", "received": "500", "min": 1, "max": 100 }
+  ]
+}
+```
+
+Colección inexistente: `POST /api/mocks/seed?collection=foo` responde `400`:
+
+```json
+{
+  "status": "error",
+  "code": "INVALID_MOCK_COLLECTION",
+  "message": "La colección indicada para el seed no es válida",
+  "details": [
+    { "field": "collection", "received": "foo", "allowed": ["users", "drivers", "orders", "deliveries", "all"] }
+  ]
+}
+```
+
+Falla de MongoDB durante el seed: `POST /api/mocks/seed?qty=5` con la base caída responde `500` (el motivo exacto depende del error del driver):
+
+```json
+{
+  "status": "error",
+  "code": "MOCK_SEED_FAILED",
+  "message": "Falló la carga de datos de prueba en MongoDB",
+  "details": [
+    { "collection": "users", "reason": "..." }
+  ]
+}
+```
+
 **Usuarios, pedidos y entregas**
 
 | Caso | Petición | Respuesta esperada |
@@ -363,3 +438,142 @@ curl -i "http://localhost:8080/api/mocks/users?qty=-5"
 curl -i -X POST "http://localhost:8080/api/mocks/seed?collection=foo"
 curl -i "http://localhost:8080/api/users/abc"
 ```
+
+## 8. Logging y monitoreo
+
+### Herramienta
+
+Se usa **[Winston](https://github.com/winstonjs/winston)** como logger centralizado, con **winston-daily-rotate-file** para guardar los logs en archivos con rotación. Toda la configuración está en un único módulo, `src/utils/logger.js`, y el resto del proyecto lo importa sin repetir configuración:
+
+```js
+import logger from '../utils/logger.js';
+
+logger.info('Pedido creado');
+```
+
+Los mensajes se muestran en la consola y se guardan en archivos con el formato `fecha [nivel] mensaje`:
+
+```
+2026-10-31 10:12:03 [info]    Servidor ShipNow escuchando en el puerto 8080 (entorno: development, nivel de log: debug)
+2026-10-31 10:14:21 [warning] GET /api/orders/abc123 -> 404 ORDER_NOT_FOUND: Pedido no encontrado
+2026-10-31 10:15:09 [error]   POST /api/mocks/seed?qty=5 -> 500 MOCK_SEED_FAILED: Falló la carga de datos de prueba en MongoDB {"details":[...]}
+```
+
+### Niveles de log
+
+Un nivel activo registra ese nivel y todos los más graves. Las constantes están en `src/constants/constants.js` (`LOG_LEVELS`).
+
+| Nivel | Prioridad | Para qué se usa en ShipNow |
+| --- | --- | --- |
+| `fatal` | 0 (más grave) | Fallas críticas: configuración inválida, falla de la conexión inicial a MongoDB, excepciones no capturadas |
+| `error` | 1 | Errores inesperados del servidor (5xx), falla al cargar datos de prueba en MongoDB |
+| `warning` | 2 | Errores esperados o del dominio (4xx): ruta inexistente, pedido no encontrado, cantidad inválida en mocks, entrega sin repartidor |
+| `info` | 3 | Eventos importantes: servidor iniciado, conexión a MongoDB, pedido creado, usuario creado, carga de datos de prueba |
+| `http` | 4 | Cada petición HTTP: método, ruta, status y duración |
+| `debug` | 5 (más detallado) | Detalle para desarrollo: datos mock generados sin guardar |
+
+### Qué se registra y dónde
+
+| Evento | Nivel | Lugar |
+| --- | --- | --- |
+| Servidor iniciado y conexión a MongoDB establecida | `info` | `server.js` |
+| Variables de entorno faltantes o fallo de la conexión inicial | `fatal` | `server.js` |
+| MongoDB desconectado o error de conexión posterior | `warning` / `error` | `server.js` |
+| Excepciones y promesas rechazadas sin manejar | `fatal` | `server.js` |
+| Cada petición HTTP | `http` | `middlewares/requestLogger.js` |
+| Errores de negocio (4xx), por ejemplo ruta o pedido inexistente, `qty` inválida | `warning` | `middlewares/errorHandler.js` |
+| Errores inesperados del servidor (5xx) y falla del seed en MongoDB | `error` | `middlewares/errorHandler.js` |
+| Problema grave de configuración (`CONFIG_ERROR`) | `fatal` | `middlewares/errorHandler.js` |
+| Pedido, usuario o entrega creados, actualizados o eliminados | `info` | services |
+| Entrega creada sin repartidor asignado | `warning` | `deliveries.service.js` |
+| Generación de mocks sin guardar | `debug` | `mocks.service.js` |
+| Carga de datos de prueba en MongoDB | `info` | `mocks.service.js` |
+
+El logger no cambia la respuesta al cliente: el `errorHandler` registra el error y después responde con la misma estructura uniforme de siempre. Los logs no incluyen el cuerpo de las peticiones, para no guardar contraseñas.
+
+### Cómo cambia según el entorno
+
+El comportamiento se define con `NODE_ENV` y, opcionalmente, `LOG_LEVEL`:
+
+| | `development` (por defecto) | `production` |
+| --- | --- | --- |
+| Nivel mínimo | `debug` (se registra todo) | `info` (se descartan `debug` y `http`) |
+| Consola | Con colores por nivel | Texto plano |
+| Archivos | `error` y `combined` | `error` y `combined` |
+
+`LOG_LEVEL` fuerza otro nivel en cualquier entorno. Si tiene un valor inválido, se usa el nivel por defecto del entorno y se registra una advertencia.
+
+Para probar el modo producción:
+
+```powershell
+# PowerShell
+$env:NODE_ENV="production"; npm start
+```
+
+```bash
+# Linux / macOS
+NODE_ENV=production npm start
+```
+
+### Dónde se guardan los logs
+
+Los archivos se crean automáticamente en la carpeta `logs/`:
+
+| Archivo | Contenido |
+| --- | --- |
+| `logs/error-AAAA-MM-DD.log` | Solo los niveles `error` y `fatal` |
+| `logs/combined-AAAA-MM-DD.log` | Todos los niveles que habilite el entorno (en development, desde `debug`) |
+
+**Rotación:** se crea un archivo nuevo por día. Además, si un archivo supera los 10 MB se abre otro, los archivos anteriores se comprimen (`.gz`) y se conservan 14 días; los más viejos se eliminan solos.
+
+**Git:** el `.gitignore` ignora todo el contenido de `logs/` (archivos `.log`, `.gz` y los auxiliares de la rotación). Solo se versiona `logs/.gitkeep`, para que la carpeta exista en el repositorio.
+
+### Endpoint de prueba del logger
+
+`GET /api/logger/test` genera un mensaje de cada nivel (`debug`, `http`, `info`, `warning`, `error` y `fatal`). Es una herramienta interna para verificar la configuración y no forma parte del negocio. Al no estar protegido, conviene quitarlo o restringirlo en un despliegue real.
+
+```bash
+curl "http://localhost:8080/api/logger/test"
+```
+
+```powershell
+Invoke-RestMethod "http://localhost:8080/api/logger/test" | ConvertTo-Json -Depth 5
+```
+
+La respuesta indica el nivel activo y si cada mensaje quedó registrado (en producción, `debug` y `http` figuran como `registered: false`):
+
+```json
+{
+  "status": "success",
+  "payload": {
+    "activeLevel": "debug",
+    "levels": [
+      { "level": "debug", "message": "[logger-test] Mensaje de prueba de nivel debug", "registered": true },
+      { "level": "http", "message": "[logger-test] Mensaje de prueba de nivel http", "registered": true },
+      { "level": "info", "message": "[logger-test] Mensaje de prueba de nivel info", "registered": true },
+      { "level": "warning", "message": "[logger-test] Mensaje de prueba de nivel warning", "registered": true },
+      { "level": "error", "message": "[logger-test] Mensaje de prueba de nivel error", "registered": true },
+      { "level": "fatal", "message": "[logger-test] Mensaje de prueba de nivel fatal", "registered": true }
+    ]
+  }
+}
+```
+
+En la consola del servidor se ven los seis mensajes:
+
+```
+2026-10-31 10:20:11 [debug]   [logger-test] Mensaje de prueba de nivel debug
+2026-10-31 10:20:11 [http]    [logger-test] Mensaje de prueba de nivel http
+2026-10-31 10:20:11 [info]    [logger-test] Mensaje de prueba de nivel info
+2026-10-31 10:20:11 [warning] [logger-test] Mensaje de prueba de nivel warning
+2026-10-31 10:20:11 [error]   [logger-test] Mensaje de prueba de nivel error
+2026-10-31 10:20:11 [fatal]   [logger-test] Mensaje de prueba de nivel fatal
+```
+
+Para verificar que todo funciona:
+
+1. Ejecutá el endpoint y mirá la consola: aparecen los mensajes según el nivel activo.
+2. Abrí `logs/error-AAAA-MM-DD.log`: solo tiene las líneas `error` y `fatal`, sin `info` ni `debug`.
+3. Abrí `logs/combined-AAAA-MM-DD.log`: tiene todos los niveles habilitados.
+4. Provocá un caso inválido, por ejemplo `GET /api/mocks/users?qty=-5`: queda un `warning` con el código del error y el detalle.
+5. Ejecutá `git status`: no debe aparecer nada de `logs/`.
