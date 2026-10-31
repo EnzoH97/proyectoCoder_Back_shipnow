@@ -1,2 +1,14 @@
 node_modules/
 .env
+
+logs/*
+!logs/.gitkeep
+*.log
+
+uploads/*
+!uploads/**/.gitkeep
+coverage
+npm-debug.log*
+.DS_Store
+docs-clase
+WORKFLOW.md
