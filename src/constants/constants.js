@@ -81,3 +81,23 @@ export const MOCK_COLLECTION_LABELS = Object.freeze({
     [MOCK_COLLECTIONS.DELIVERIES]: 'entregas',
     [MOCK_COLLECTIONS.ALL]: 'todas'
 });
+
+// Logging: niveles disponibles y su prioridad (0 = más grave). Un nivel activo registra
+// ese nivel y todos los más graves; por ejemplo con "info" se registran fatal, error, warning e info.
+export const LOG_LEVELS = Object.freeze({
+    FATAL: 'fatal',
+    ERROR: 'error',
+    WARNING: 'warning',
+    INFO: 'info',
+    HTTP: 'http',
+    DEBUG: 'debug'
+});
+
+export const LOG_LEVEL_PRIORITIES = Object.freeze({
+    [LOG_LEVELS.FATAL]: 0,
+    [LOG_LEVELS.ERROR]: 1,
+    [LOG_LEVELS.WARNING]: 2,
+    [LOG_LEVELS.INFO]: 3,
+    [LOG_LEVELS.HTTP]: 4,
+    [LOG_LEVELS.DEBUG]: 5
+});
