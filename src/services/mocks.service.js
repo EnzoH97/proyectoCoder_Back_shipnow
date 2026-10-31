@@ -2,6 +2,7 @@ import usersRepo from '../repositories/users.repo.js';
 import ordersRepo from '../repositories/orders.repo.js';
 import deliveriesRepo from '../repositories/deliveries.repo.js';
 import AppError, { ErrorDictionary } from '../utils/errors.js';
+import logger from '../utils/logger.js';
 import config from '../config/config.js';
 import { calculateShippingCost } from './orders.service.js';
 import {
@@ -164,15 +165,20 @@ class MocksService {
     // ---------- endpoints GET (no guardan) ----------
 
     getUsers(rawQty) {
-        return this.generateUsers(this.normalizeQty(rawQty));
+        const qty = this.normalizeQty(rawQty);
+        logger.debug(`Mock generado sin guardar: ${qty} usuarios`);
+        return this.generateUsers(qty);
     }
 
     getDrivers(rawQty) {
-        return this.generateDrivers(this.normalizeQty(rawQty));
+        const qty = this.normalizeQty(rawQty);
+        logger.debug(`Mock generado sin guardar: ${qty} repartidores`);
+        return this.generateDrivers(qty);
     }
 
     getOrders(rawQty) {
         const qty = this.normalizeQty(rawQty);
+        logger.debug(`Mock generado sin guardar: ${qty} pedidos`);
         return this.buildDataset({ users: 3, drivers: 2, orders: qty }).orders;
     }
 
@@ -186,15 +192,18 @@ class MocksService {
             const delivery = this.buildDeliveryForOrder(order, driverIds, { forceDelivery: true });
             if (delivery) deliveries.push(delivery);
         }
+        logger.debug(`Mock generado sin guardar: ${qty} entregas`);
         return deliveries;
     }
 
     getDataset(query = {}) {
-        return this.buildDataset({
+        const counts = {
             users: this.normalizeQty(query.users, 'users'),
             drivers: this.normalizeQty(query.drivers, 'drivers'),
             orders: this.normalizeQty(query.orders, 'orders')
-        });
+        };
+        logger.debug('Dataset de mocks generado sin guardar', counts);
+        return this.buildDataset(counts);
     }
 
     // ---------- seed (guarda en MongoDB) ----------
@@ -209,8 +218,12 @@ class MocksService {
 
         const qty = this.normalizeQty(rawQty);
 
+        logger.info(`Iniciando carga de datos de prueba: collection=${collection}, qty=${qty}`);
+
         try {
-            return await this.runSeed(collection, qty);
+            const result = await this.runSeed(collection, qty);
+            logger.info(`Datos de prueba cargados en MongoDB: ${this.summarizeSeed(result)}`);
+            return result;
         } catch (error) {
             // los errores del dominio pasan tal cual; cualquier falla de MongoDB se informa como falla del seed
             if (error instanceof AppError) {
@@ -220,6 +233,11 @@ class MocksService {
                 { collection, reason: error.message }
             ]);
         }
+    }
+
+    summarizeSeed(result) {
+        const items = result.resultados || [result];
+        return items.map((item) => `${item.insertados} ${item.coleccion}`).join(', ');
     }
 
     async runSeed(collection, qty) {

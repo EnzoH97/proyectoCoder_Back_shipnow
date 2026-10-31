@@ -2,6 +2,7 @@ import deliveriesRepo from '../repositories/deliveries.repo.js';
 import ordersRepo from '../repositories/orders.repo.js';
 import usersRepo from '../repositories/users.repo.js';
 import AppError, { ErrorDictionary } from '../utils/errors.js';
+import logger from '../utils/logger.js';
 import { USER_ROLES, DELIVERY_STATUS, DELIVERY_PRIORITY } from '../constants/constants.js';
 
 class DeliveriesService {
@@ -37,7 +38,14 @@ class DeliveriesService {
             }
         }
         
-        return deliveriesRepo.create(deliveryData);
+        const newDelivery = await deliveriesRepo.create(deliveryData);
+
+        if (!newDelivery.driver) {
+            logger.warning(`Entrega ${newDelivery._id} creada sin repartidor asignado (pedido ${deliveryData.order})`);
+        } else {
+            logger.info(`Entrega creada: ${newDelivery._id} (pedido ${deliveryData.order})`);
+        }
+        return newDelivery;
     }
 
     async update(id, deliveryData) {
@@ -50,6 +58,7 @@ class DeliveriesService {
             throw new AppError(ErrorDictionary.DELIVERY_NOT_FOUND);
         }
         
+        logger.info(`Entrega actualizada: ${id}`, deliveryData.status ? { status: deliveryData.status } : {});
         return updatedDelivery;
     }
     

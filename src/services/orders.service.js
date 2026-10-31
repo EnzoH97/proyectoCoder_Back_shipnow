@@ -2,6 +2,7 @@ import ordersRepo from '../repositories/orders.repo.js';
 import usersRepo from '../repositories/users.repo.js';
 import AppError, { ErrorDictionary } from '../utils/errors.js';
 import config from '../config/config.js';
+import logger from '../utils/logger.js';
 import { NODE_ENVS, ORDER_STATUS, DELIVERY_PRIORITY } from '../constants/constants.js';
 
 export function calculateShippingCost({ isProduction, shipmentValue, apiKey }) {
@@ -58,6 +59,7 @@ class OrdersService {
             priority: orderData.priority || DELIVERY_PRIORITY.NORMAL
         });
         
+        logger.info(`Pedido creado: ${newOrder._id} (cliente ${orderData.customer}, total ${newOrder.total})`);
         return newOrder;
     }
     
@@ -74,6 +76,7 @@ class OrdersService {
             throw new AppError(ErrorDictionary.ORDER_NOT_FOUND);
         }
     
+        logger.info(`Pedido actualizado: ${id}`, orderData.status ? { status: orderData.status } : {});
         return updatedOrder;
     }
 
@@ -85,6 +88,7 @@ class OrdersService {
             throw new AppError(ErrorDictionary.ORDER_NOT_FOUND);
         }
         
+        logger.info(`Pedido eliminado: ${id}`);
         return deletedOrder;
     }
 

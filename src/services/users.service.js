@@ -1,5 +1,6 @@
 import usersRepo from '../repositories/users.repo.js';
 import AppError, { ErrorDictionary } from '../utils/errors.js';
+import logger from '../utils/logger.js';
 import { USER_ROLES } from '../constants/constants.js';
 
 class UsersService {
@@ -31,7 +32,9 @@ class UsersService {
 			throw new AppError(ErrorDictionary.EMAIL_ALREADY_EXISTS, [{ field: 'email', received: userData.email }]);
 		}
 		
-		return usersRepo.create(userData);
+		const newUser = await usersRepo.create(userData);
+		logger.info(`Usuario creado: ${newUser._id} (rol ${newUser.role})`);
+		return newUser;
 	}
 
 	async update(id, userData) {
@@ -53,6 +56,7 @@ class UsersService {
 			throw new AppError(ErrorDictionary.USER_NOT_FOUND);
 		}
 
+		logger.info(`Usuario eliminado: ${id}`);
 		return deletedUser;
 	}
 
