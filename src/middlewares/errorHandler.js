@@ -1,7 +1,6 @@
 import AppError, { ErrorDictionary } from '../utils/errors.js';
+import logger from '../utils/logger.js';
 
-// Convierte errores "de librería" (Mongoose, body-parser, MongoDB) en AppError del diccionario.
-// Devuelve null si el error no se reconoce (se tratará como 500).
 const translateError = (err) => {
     if (err.type === 'entity.parse.failed') {
         return new AppError(ErrorDictionary.INVALID_JSON);
@@ -24,8 +23,31 @@ const translateError = (err) => {
     return null;
 };
 
-// Único punto de la API que responde errores al cliente.
-// Formato: { status: 'error', code, message, details }
+const logError = (req, originalError, finalError) => {
+    const message = `${req.method} ${req.originalUrl} -> ${finalError.statusCode} ${finalError.code}: ${finalError.message}`;
+    const meta = {};
+
+    if (finalError.details.length > 0) {
+        meta.details = finalError.details;
+    }
+
+    if (originalError !== finalError && originalError?.message) {
+        meta.cause = originalError.message;
+    }
+
+    if (finalError.statusCode < 500) {
+        logger.warning(message, meta);
+        return;
+    }
+
+    meta.stack = originalError?.stack;
+    if (finalError.code === ErrorDictionary.CONFIG_ERROR.code) {
+        logger.fatal(message, meta);
+    } else {
+        logger.error(message, meta);
+    }
+};
+
 const errorHandler = (err, req, res, next) => {
     if (res.headersSent) {
         return next(err);
@@ -34,10 +56,7 @@ const errorHandler = (err, req, res, next) => {
     const appError = err instanceof AppError ? err : translateError(err);
     const finalError = appError || new AppError(ErrorDictionary.INTERNAL_SERVER_ERROR);
 
-    // los errores del servidor se registran en consola; el cliente nunca ve el detalle interno
-    if (finalError.statusCode >= 500) {
-        console.error(`[${req.method} ${req.originalUrl}]`, err);
-    }
+    logError(req, err, finalError);
 
     res.status(finalError.statusCode).json({
         status: 'error',
