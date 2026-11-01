@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-import { NODE_ENVS } from "../constants/constants.js";
+import { NODE_ENVS, LOG_LEVELS } from "../constants/constants.js";
 
 dotenv.config();
 
