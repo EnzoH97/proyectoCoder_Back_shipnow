@@ -1,0 +1,279 @@
+paths:
+  /api/orders:
+    get:
+      tags:
+      - Orders
+      summary: Listar pedidos
+      description: Devuelve todos los pedidos, con los datos básicos del cliente y la entrega asociada.
+      responses:
+        '200':
+          description: Lista de pedidos
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    payload:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/OrderDetail'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags:
+      - Orders
+      summary: Crear pedido
+      description: Crea un pedido para un cliente existente. El estado inicial es siempre created; el valor declarado (si no se envía), el costo de envío y el total los calcula el servidor.
+      requestBody:
+        required: true
+        description: Datos del pedido
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderCreate'
+            example:
+              customer: 671a2b3c4d5e6f7890123456
+              items:
+              - name: Zapatillas running
+                quantity: 2
+                price: 45000
+              deliveryAddress: San Martín 1234, Mendoza
+              priority: normal
+      responses:
+        '201':
+          description: Pedido creado
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    payload:
+                      $ref: '#/components/schemas/Order'
+        '400':
+          description: Cuerpo inválido, pedido sin items, items inválidos (cantidad menor a 1, precio negativo, nombre vacío), prioridad no válida, faltan datos obligatorios o el id del cliente no tiene formato válido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                INVALID_JSON:
+                  summary: INVALID_JSON
+                  value:
+                    status: error
+                    code: INVALID_JSON
+                    message: El cuerpo de la petición no es un JSON válido
+                    details: []
+                ORDER_WITHOUT_ITEMS:
+                  summary: ORDER_WITHOUT_ITEMS
+                  value:
+                    status: error
+                    code: ORDER_WITHOUT_ITEMS
+                    message: El pedido debe tener al menos un item
+                    details: []
+                INVALID_ORDER_ITEMS:
+                  summary: INVALID_ORDER_ITEMS
+                  value:
+                    status: error
+                    code: INVALID_ORDER_ITEMS
+                    message: Los items del pedido no son válidos
+                    details:
+                    - field: items[0].price
+                      message: El precio debe ser un número mayor o igual a 0
+                INVALID_PRIORITY:
+                  summary: INVALID_PRIORITY
+                  value:
+                    status: error
+                    code: INVALID_PRIORITY
+                    message: La prioridad indicada no es válida
+                    details:
+                    - field: priority
+                      received: urgentisima
+                      allowed:
+                      - low
+                      - normal
+                      - high
+                VALIDATION_ERROR:
+                  summary: VALIDATION_ERROR
+                  value:
+                    status: error
+                    code: VALIDATION_ERROR
+                    message: Los datos enviados no son válidos
+                    details:
+                    - field: deliveryAddress
+                      message: La dirección de entrega es obligatoria
+                INVALID_ID:
+                  summary: INVALID_ID
+                  value:
+                    status: error
+                    code: INVALID_ID
+                    message: El id proporcionado no es válido
+                    details:
+                    - field: _id
+                      received: abc
+        '404':
+          description: El cliente indicado no existe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                code: CUSTOMER_NOT_FOUND
+                message: El cliente especificado no existe
+                details: []
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/orders/{id}:
+    get:
+      tags:
+      - Orders
+      summary: Obtener pedido por id
+      description: Devuelve un pedido con el cliente y la entrega completados.
+      parameters:
+      - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Pedido encontrado
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    payload:
+                      $ref: '#/components/schemas/OrderDetail'
+        '400':
+          $ref: '#/components/responses/InvalidId'
+        '404':
+          $ref: '#/components/responses/OrderNotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags:
+      - Orders
+      summary: Actualizar pedido
+      description: Modifica los campos enviados de un pedido (por ejemplo su estado o prioridad). Devuelve el pedido actualizado.
+      parameters:
+      - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        description: Campos a modificar
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderUpdate'
+            example:
+              status: assigned
+              priority: high
+      responses:
+        '200':
+          description: Pedido actualizado
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    payload:
+                      $ref: '#/components/schemas/Order'
+        '400':
+          description: Id inválido, cuerpo inválido, estado o prioridad no permitidos, o items inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                INVALID_ID:
+                  summary: INVALID_ID
+                  value:
+                    status: error
+                    code: INVALID_ID
+                    message: El id proporcionado no es válido
+                    details:
+                    - field: _id
+                      received: abc
+                INVALID_JSON:
+                  summary: INVALID_JSON
+                  value:
+                    status: error
+                    code: INVALID_JSON
+                    message: El cuerpo de la petición no es un JSON válido
+                    details: []
+                INVALID_ORDER_STATUS:
+                  summary: INVALID_ORDER_STATUS
+                  value:
+                    status: error
+                    code: INVALID_ORDER_STATUS
+                    message: El estado del pedido no es válido
+                    details:
+                    - field: status
+                      received: volando
+                      allowed:
+                      - created
+                      - assigned
+                      - picked_up
+                      - in_transit
+                      - delivered
+                      - cancelled
+                INVALID_PRIORITY:
+                  summary: INVALID_PRIORITY
+                  value:
+                    status: error
+                    code: INVALID_PRIORITY
+                    message: La prioridad indicada no es válida
+                    details:
+                    - field: priority
+                      received: urgentisima
+                      allowed:
+                      - low
+                      - normal
+                      - high
+                ORDER_WITHOUT_ITEMS:
+                  summary: ORDER_WITHOUT_ITEMS
+                  value:
+                    status: error
+                    code: ORDER_WITHOUT_ITEMS
+                    message: El pedido debe tener al menos un item
+                    details: []
+                INVALID_ORDER_ITEMS:
+                  summary: INVALID_ORDER_ITEMS
+                  value:
+                    status: error
+                    code: INVALID_ORDER_ITEMS
+                    message: Los items del pedido no son válidos
+                    details:
+                    - field: items[0].price
+                      message: El precio debe ser un número mayor o igual a 0
+        '404':
+          $ref: '#/components/responses/OrderNotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+      - Orders
+      summary: Eliminar pedido
+      description: Elimina un pedido.
+      parameters:
+      - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Pedido eliminado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+              example:
+                status: success
+                message: Pedido eliminado
+        '400':
+          $ref: '#/components/responses/InvalidId'
+        '404':
+          $ref: '#/components/responses/OrderNotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'

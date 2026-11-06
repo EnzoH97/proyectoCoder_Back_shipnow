@@ -1,0 +1,263 @@
+paths:
+  /api/deliveries:
+    get:
+      tags:
+      - Deliveries
+      summary: Listar entregas
+      description: Devuelve todas las entregas, con el pedido y los datos básicos del repartidor.
+      responses:
+        '200':
+          description: Lista de entregas
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    payload:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/DeliveryDetail'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags:
+      - Deliveries
+      summary: Crear entrega
+      description: Crea una entrega para un pedido existente. El repartidor es opcional; si se envía, tiene que existir y tener rol driver.
+      requestBody:
+        required: true
+        description: Datos de la entrega
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryCreate'
+            example:
+              order: 671a2b3c4d5e6f7890123456
+              driver: 671a2b3c4d5e6f7890123456
+              status: assigned
+              priority: normal
+      responses:
+        '201':
+          description: Entrega creada
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    payload:
+                      $ref: '#/components/schemas/Delivery'
+        '400':
+          description: Cuerpo inválido, estado o prioridad no permitidos, el usuario indicado no es repartidor o algún id no tiene formato válido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                INVALID_JSON:
+                  summary: INVALID_JSON
+                  value:
+                    status: error
+                    code: INVALID_JSON
+                    message: El cuerpo de la petición no es un JSON válido
+                    details: []
+                INVALID_DELIVERY_STATUS:
+                  summary: INVALID_DELIVERY_STATUS
+                  value:
+                    status: error
+                    code: INVALID_DELIVERY_STATUS
+                    message: El estado de la entrega no es válido
+                    details:
+                    - field: status
+                      received: volando
+                      allowed:
+                      - pending
+                      - assigned
+                      - in_transit
+                      - delivered
+                INVALID_PRIORITY:
+                  summary: INVALID_PRIORITY
+                  value:
+                    status: error
+                    code: INVALID_PRIORITY
+                    message: La prioridad indicada no es válida
+                    details:
+                    - field: priority
+                      received: urgentisima
+                      allowed:
+                      - low
+                      - normal
+                      - high
+                USER_NOT_DRIVER:
+                  summary: USER_NOT_DRIVER
+                  value:
+                    status: error
+                    code: USER_NOT_DRIVER
+                    message: El usuario indicado no tiene rol de repartidor
+                    details: []
+                INVALID_ID:
+                  summary: INVALID_ID
+                  value:
+                    status: error
+                    code: INVALID_ID
+                    message: El id proporcionado no es válido
+                    details:
+                    - field: _id
+                      received: abc
+        '404':
+          description: El pedido o el repartidor indicado no existe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                ORDER_NOT_FOUND:
+                  summary: ORDER_NOT_FOUND
+                  value:
+                    status: error
+                    code: ORDER_NOT_FOUND
+                    message: Pedido no encontrado
+                    details: []
+                DRIVER_NOT_FOUND:
+                  summary: DRIVER_NOT_FOUND
+                  value:
+                    status: error
+                    code: DRIVER_NOT_FOUND
+                    message: El repartidor especificado no existe
+                    details: []
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/deliveries/{id}:
+    get:
+      tags:
+      - Deliveries
+      summary: Obtener entrega por id
+      description: Devuelve una entrega con el pedido y el repartidor completados.
+      parameters:
+      - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Entrega encontrada
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    payload:
+                      $ref: '#/components/schemas/DeliveryDetail'
+        '400':
+          $ref: '#/components/responses/InvalidId'
+        '404':
+          $ref: '#/components/responses/DeliveryNotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags:
+      - Deliveries
+      summary: Actualizar entrega
+      description: Modifica los campos enviados de una entrega (por ejemplo su estado). Devuelve la entrega actualizada.
+      parameters:
+      - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        description: Campos a modificar
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryUpdate'
+            example:
+              status: in_transit
+      responses:
+        '200':
+          description: Entrega actualizada
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    payload:
+                      $ref: '#/components/schemas/Delivery'
+        '400':
+          description: Id inválido, cuerpo inválido, o estado o prioridad no permitidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                INVALID_ID:
+                  summary: INVALID_ID
+                  value:
+                    status: error
+                    code: INVALID_ID
+                    message: El id proporcionado no es válido
+                    details:
+                    - field: _id
+                      received: abc
+                INVALID_JSON:
+                  summary: INVALID_JSON
+                  value:
+                    status: error
+                    code: INVALID_JSON
+                    message: El cuerpo de la petición no es un JSON válido
+                    details: []
+                INVALID_DELIVERY_STATUS:
+                  summary: INVALID_DELIVERY_STATUS
+                  value:
+                    status: error
+                    code: INVALID_DELIVERY_STATUS
+                    message: El estado de la entrega no es válido
+                    details:
+                    - field: status
+                      received: volando
+                      allowed:
+                      - pending
+                      - assigned
+                      - in_transit
+                      - delivered
+                INVALID_PRIORITY:
+                  summary: INVALID_PRIORITY
+                  value:
+                    status: error
+                    code: INVALID_PRIORITY
+                    message: La prioridad indicada no es válida
+                    details:
+                    - field: priority
+                      received: urgentisima
+                      allowed:
+                      - low
+                      - normal
+                      - high
+        '404':
+          $ref: '#/components/responses/DeliveryNotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+      - Deliveries
+      summary: Eliminar entrega
+      description: Elimina una entrega.
+      parameters:
+      - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Entrega eliminada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+              example:
+                status: success
+                message: Entrega eliminada
+        '400':
+          $ref: '#/components/responses/InvalidId'
+        '404':
+          $ref: '#/components/responses/DeliveryNotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'

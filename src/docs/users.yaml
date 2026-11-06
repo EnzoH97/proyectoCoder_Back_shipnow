@@ -1,0 +1,248 @@
+paths:
+  /api/users:
+    get:
+      tags:
+      - Users
+      summary: Listar usuarios
+      description: Devuelve todos los usuarios.
+      responses:
+        '200':
+          description: Lista de usuarios
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    payload:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/User'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags:
+      - Users
+      summary: Crear usuario
+      description: Crea un usuario. El email tiene que ser único y no se puede crear un usuario con rol admin.
+      requestBody:
+        required: true
+        description: Datos del usuario
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+            example:
+              firstName: Ana
+              lastName: Gómez
+              email: ana@example.com
+              password: coder123
+              role: customer
+      responses:
+        '201':
+          description: Usuario creado
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    payload:
+                      $ref: '#/components/schemas/User'
+        '400':
+          description: Cuerpo inválido, faltan datos obligatorios o el rol no es válido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                INVALID_JSON:
+                  summary: INVALID_JSON
+                  value:
+                    status: error
+                    code: INVALID_JSON
+                    message: El cuerpo de la petición no es un JSON válido
+                    details: []
+                VALIDATION_ERROR:
+                  summary: VALIDATION_ERROR
+                  value:
+                    status: error
+                    code: VALIDATION_ERROR
+                    message: Los datos enviados no son válidos
+                    details:
+                    - field: deliveryAddress
+                      message: La dirección de entrega es obligatoria
+                INVALID_USER_ROLE:
+                  summary: INVALID_USER_ROLE
+                  value:
+                    status: error
+                    code: INVALID_USER_ROLE
+                    message: El rol indicado no es válido
+                    details:
+                    - field: role
+                      received: superman
+                      allowed:
+                      - admin
+                      - customer
+                      - driver
+                      - store
+        '403':
+          description: No se puede crear un admin desde este endpoint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                code: ADMIN_CREATION_FORBIDDEN
+                message: No se puede crear un admin desde este endpoint
+                details: []
+        '409':
+          description: Ya existe un usuario con ese email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                code: EMAIL_ALREADY_EXISTS
+                message: Ya existe un usuario con ese email
+                details:
+                - field: email
+                  received: ana@example.com
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/users/{id}:
+    get:
+      tags:
+      - Users
+      summary: Obtener usuario por id
+      description: Devuelve un usuario.
+      parameters:
+      - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Usuario encontrado
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    payload:
+                      $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/InvalidId'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags:
+      - Users
+      summary: Actualizar usuario
+      description: Modifica los campos enviados de un usuario. Devuelve el usuario ya actualizado.
+      parameters:
+      - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        description: Campos a modificar
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+            example:
+              firstName: Ana María
+              role: driver
+      responses:
+        '200':
+          description: Usuario actualizado
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    payload:
+                      $ref: '#/components/schemas/User'
+        '400':
+          description: Id inválido, cuerpo inválido o rol no válido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                INVALID_ID:
+                  summary: INVALID_ID
+                  value:
+                    status: error
+                    code: INVALID_ID
+                    message: El id proporcionado no es válido
+                    details:
+                    - field: _id
+                      received: abc
+                INVALID_JSON:
+                  summary: INVALID_JSON
+                  value:
+                    status: error
+                    code: INVALID_JSON
+                    message: El cuerpo de la petición no es un JSON válido
+                    details: []
+                INVALID_USER_ROLE:
+                  summary: INVALID_USER_ROLE
+                  value:
+                    status: error
+                    code: INVALID_USER_ROLE
+                    message: El rol indicado no es válido
+                    details:
+                    - field: role
+                      received: superman
+                      allowed:
+                      - admin
+                      - customer
+                      - driver
+                      - store
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '409':
+          description: El email nuevo ya pertenece a otro usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                code: DUPLICATE_KEY
+                message: Ya existe un registro con esos datos
+                details:
+                - field: email
+                  received: ana@example.com
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+      - Users
+      summary: Eliminar usuario
+      description: Elimina un usuario.
+      parameters:
+      - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Usuario eliminado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+              example:
+                status: success
+                message: Usuario eliminado
+        '400':
+          $ref: '#/components/responses/InvalidId'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
