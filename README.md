@@ -6,6 +6,8 @@ ShipNow es una API REST para gestionar envíos. Permite administrar **usuarios**
 
 Registra lo que ocurre en el servidor con un **logger centralizado (Winston)**, con niveles, archivos de log y rotación (ver [8. Logging y monitoreo](#8-logging-y-monitoreo)).
 
+La API está documentada con **Swagger / OpenAPI** y se puede consultar y probar desde el navegador en `/api/docs` (ver [9. Documentación de la API (Swagger)](#9-documentación-de-la-api-swagger)).
+
 Incluye un **módulo de mocking** (`/api/mocks`) que genera datos simulados (usuarios, repartidores, pedidos y entregas) y permite cargarlos en MongoDB de forma controlada, sin tener que crearlos a mano. Los datos respetan los modelos reales, las relaciones entre entidades y las constantes del proyecto (roles, estados y prioridades).
 
 ## 2. Tecnologías utilizadas
@@ -19,6 +21,8 @@ Incluye un **módulo de mocking** (`/api/mocks`) que genera datos simulados (usu
 | cors | Habilitar peticiones desde otros orígenes |
 | winston | Logger centralizado con niveles de log |
 | winston-daily-rotate-file | Archivos de log con rotación diaria |
+| swagger-jsdoc | Arma la especificación OpenAPI a partir de los archivos `.yaml` de `src/docs/` |
+| swagger-ui-express | Sirve Swagger UI (documentación interactiva) |
 | nodemon | Reinicio automático en desarrollo |
 
 ## 3. Estructura del proyecto
@@ -34,6 +38,15 @@ shipnow/
 │   │   └── config.js               # Lectura y validación de variables de entorno
 │   ├── constants/
 │   │   └── constants.js            # Roles, estados, prioridades, entornos y límites del mocking
+│   ├── docs/                       # Documentación Swagger/OpenAPI (separada de las rutas)
+│   │   ├── swagger.config.js       # Información general, servidor, tags y armado de la especificación
+│   │   ├── schemas.yaml            # Schemas reutilizables (User, Order, Delivery, OrderItem, errores, etc.)
+│   │   ├── components.yaml         # Parámetros y respuestas de error reutilizables
+│   │   ├── users.yaml              # Endpoints de Users
+│   │   ├── orders.yaml             # Endpoints de Orders
+│   │   ├── deliveries.yaml         # Endpoints de Deliveries
+│   │   ├── mocks.yaml              # Endpoints de Mocks
+│   │   └── logger.yaml             # Endpoint de Logger
 │   ├── models/                     # Esquemas de Mongoose (user, order, delivery)
 │   ├── repositories/               # Acceso a datos (users, orders, deliveries)
 │   ├── services/                   # Lógica de negocio (users, orders, deliveries, mocks, logger)
@@ -102,8 +115,9 @@ Si todo está bien, la consola muestra `MongoDB conectado` y `Servidor en puerto
 
 ### Probar rápidamente
 
-1. Cargar datos de prueba: `POST /api/mocks/seed?collection=all&qty=5`
-2. Ver lo guardado: `GET /api/users`, `GET /api/orders`, `GET /api/deliveries`
+1. Abrir la documentación interactiva: `http://localhost:8080/api/docs`
+2. Cargar datos de prueba: `POST /api/mocks/seed?collection=all&qty=5`
+3. Ver lo guardado: `GET /api/users`, `GET /api/orders`, `GET /api/deliveries`
 
 ## 5. Variables de entorno
 
@@ -128,6 +142,8 @@ Las respuestas exitosas tienen la forma `{ "status": "success", "payload": ... }
 | Método | Ruta | Descripción |
 | --- | --- | --- |
 | GET | `/api/health` | Estado del servidor |
+| GET | `/api/docs` | Documentación interactiva (Swagger UI) |
+| GET | `/api/docs.json` | Especificación OpenAPI en JSON (se puede importar en Postman) |
 | GET | `/api/logger/test` | Herramienta interna: genera un log de cada nivel para probar el logger (ver [8. Logging y monitoreo](#8-logging-y-monitoreo)) |
 
 ### Usuarios, pedidos y entregas
@@ -577,3 +593,88 @@ Para verificar que todo funciona:
 3. Abrí `logs/combined-AAAA-MM-DD.log`: tiene todos los niveles habilitados.
 4. Provocá un caso inválido, por ejemplo `GET /api/mocks/users?qty=-5`: queda un `warning` con el código del error y el detalle.
 5. Ejecutá `git status`: no debe aparecer nada de `logs/`.
+
+## 9. Documentación de la API (Swagger)
+
+La API se documenta con **Swagger / OpenAPI 3** y se puede consultar y probar desde el navegador.
+
+| Qué | Dónde |
+| --- | --- |
+| Documentación interactiva (Swagger UI) | `http://localhost:8080/api/docs` |
+| Especificación en JSON | `http://localhost:8080/api/docs.json` |
+
+El puerto es el de la variable `PORT` del `.env` (por defecto `8080`).
+
+### Cómo levantar el servidor y abrir la documentación
+
+```bash
+npm install
+cp .env.example .env      # en Windows PowerShell: Copy-Item .env.example .env
+npm run dev
+```
+
+1. Verificá que MongoDB esté corriendo y que el `.env` tenga `MONGODB_URI` y `JWT_SECRET`.
+2. Ejecutá `npm run dev` **desde la carpeta raíz del proyecto** (swagger-jsdoc busca los archivos `.yaml` con una ruta relativa).
+3. Abrí `http://localhost:8080/api/docs` en el navegador.
+
+### Módulos documentados
+
+Los 22 endpoints están agrupados por tag:
+
+| Tag | Endpoints documentados |
+| --- | --- |
+| **Users** | `GET /api/users`, `POST /api/users`, `GET /api/users/{id}`, `PUT /api/users/{id}`, `DELETE /api/users/{id}` |
+| **Orders** | `GET /api/orders`, `POST /api/orders`, `GET /api/orders/{id}`, `PUT /api/orders/{id}`, `DELETE /api/orders/{id}` |
+| **Deliveries** | `GET /api/deliveries`, `POST /api/deliveries`, `GET /api/deliveries/{id}`, `PUT /api/deliveries/{id}`, `DELETE /api/deliveries/{id}` |
+| **Mocks** | `GET /api/mocks/users`, `/drivers`, `/orders`, `/deliveries`, `/dataset` y `POST /api/mocks/seed` |
+| **Logger** | `GET /api/logger/test` (herramienta de validación del logger, no es una funcionalidad de negocio) |
+
+Cada endpoint documenta: método y ruta, descripción, parámetros de ruta y de query, body esperado (cuando corresponde), respuesta exitosa y los errores que realmente puede devolver, con un ejemplo de cada código.
+
+La información general (nombre, versión, descripción, propósito y servidor local) está en `src/docs/swagger.config.js`.
+
+### Schemas reutilizables
+
+Definidos en `src/docs/schemas.yaml` y referenciados desde los endpoints:
+
+| Schema | Uso |
+| --- | --- |
+| `User`, `UserCreate`, `UserUpdate`, `UserSummary` | Usuario completo, body de alta, body de modificación y resumen que se muestra dentro de pedidos y entregas |
+| `Order`, `OrderDetail`, `OrderCreate`, `OrderUpdate` | Pedido, pedido con cliente y entrega completados (lo que devuelven los GET), y los bodies de alta y modificación |
+| `OrderItem` | Item de un pedido (`name`, `quantity`, `price`) |
+| `Delivery`, `DeliveryDetail`, `DeliveryCreate`, `DeliveryUpdate` | Equivalentes para entregas |
+| `SuccessResponse`, `SuccessMessage` | Respuesta exitosa con `payload` y respuesta exitosa con solo un `message` |
+| `ErrorResponse` | Respuesta de error uniforme: `status`, `code`, `message` y `details` |
+| `SeedSingleResult`, `SeedAllResult`, `MockDataset`, `LoggerTestResult` | Respuestas de mocks y logger |
+
+Los enums (roles, estados de pedido y de entrega, prioridades, niveles de log y códigos de error) **se generan desde las mismas constantes que usa la API**, así que la documentación no se desactualiza si esas constantes cambian.
+
+### Errores documentados
+
+Los errores documentados son los mismos del [diccionario de errores](#7-manejo-de-errores) y siempre devuelven la estructura de `ErrorResponse`. Los más relevantes por módulo:
+
+| Módulo | Errores |
+| --- | --- |
+| Users | `INVALID_ID`, `USER_NOT_FOUND`, `EMAIL_ALREADY_EXISTS`, `ADMIN_CREATION_FORBIDDEN`, `INVALID_USER_ROLE`, `VALIDATION_ERROR` |
+| Orders | `ORDER_NOT_FOUND`, `CUSTOMER_NOT_FOUND`, `ORDER_WITHOUT_ITEMS`, `INVALID_ORDER_ITEMS`, `INVALID_ORDER_STATUS`, `INVALID_PRIORITY` |
+| Deliveries | `DELIVERY_NOT_FOUND`, `ORDER_NOT_FOUND`, `DRIVER_NOT_FOUND`, `USER_NOT_DRIVER`, `INVALID_DELIVERY_STATUS`, `INVALID_PRIORITY` |
+| Mocks | `QTY_NOT_INTEGER`, `QTY_NEGATIVE`, `QTY_OUT_OF_RANGE`, `INVALID_MOCK_COLLECTION`, `NO_CUSTOMERS_FOR_MOCK`, `NO_PENDING_ORDERS_FOR_MOCK`, `NO_DRIVERS_FOR_MOCK`, `MOCK_SEED_FAILED` |
+| Todos | `INVALID_JSON`, `INTERNAL_SERVER_ERROR` |
+
+### Cómo probar los endpoints desde Swagger UI
+
+1. Abrí un endpoint y presioná **Try it out**, completá los datos y presioná **Execute**.
+2. Para tener datos con los que trabajar, ejecutá primero `POST /api/mocks/seed` con `collection=all` y `qty=5`.
+3. Ejecutá `GET /api/users` y `GET /api/orders` y copiá algún `_id`: los ids de los ejemplos de los bodies son de muestra y hay que reemplazarlos por ids reales.
+4. Probá un alta, por ejemplo `POST /api/orders` con el `_id` de un usuario con rol `customer` en el campo `customer`.
+5. Probá los casos inválidos para ver los errores documentados: `qty=-5` en cualquier endpoint de mocks, un `id` como `abc`, un pedido con `items: []` o un `status` inexistente.
+
+### Aclaraciones
+
+- **Autenticación:** la API no requiere autenticación, por eso Swagger UI no tiene botón *Authorize*.
+- **Parámetros de mocks:** `qty` y `collection` figuran como texto (aunque `qty` es un número entre 1 y 100) para que Swagger UI deje enviar valores inválidos como `abc`, `-5` o `foo` y se pueda ver la respuesta de error real.
+- **Seed sin body:** `POST /api/mocks/seed` no espera body. Sus parámetros (`collection` y `qty`) van por query.
+- **Mocks con GET:** los endpoints `GET /api/mocks/...` devuelven datos simulados sin guardarlos en la base.
+- **Logger:** `GET /api/logger/test` es una herramienta interna para validar el logger. Genera mensajes en todos los niveles y no forma parte de la lógica de negocio.
+- **Contraseñas:** la API guarda y devuelve la contraseña tal cual (sin hash), y la documentación lo refleja en el schema `User`.
+- **Mantenimiento:** si se agrega o cambia un endpoint, hay que actualizar el archivo `.yaml` correspondiente de `src/docs/`.
