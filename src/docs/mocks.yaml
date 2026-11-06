@@ -1,0 +1,315 @@
+paths:
+  /api/mocks/users:
+    get:
+      tags:
+      - Mocks
+      summary: Obtener usuarios simulados
+      description: No guarda nada en la base de datos. Genera usuarios con roles repartidos entre customer, driver y store (nunca admin).
+      parameters:
+      - name: qty
+        in: query
+        required: false
+        description: 'Cantidad a generar: entero entre 1 y 100 (por defecto 5). Se documenta como texto para poder probar en Swagger UI los valores inválidos (abc, -5, 0, 500), que responden 400.'
+        schema:
+          type: string
+          example: '5'
+      responses:
+        '200':
+          description: Usuarios simulados
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    payload:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/MockQtyError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/mocks/drivers:
+    get:
+      tags:
+      - Mocks
+      summary: Obtener repartidores simulados
+      description: No guarda nada en la base de datos. Genera usuarios con rol driver.
+      parameters:
+      - name: qty
+        in: query
+        required: false
+        description: 'Cantidad a generar: entero entre 1 y 100 (por defecto 5). Se documenta como texto para poder probar en Swagger UI los valores inválidos (abc, -5, 0, 500), que responden 400.'
+        schema:
+          type: string
+          example: '5'
+      responses:
+        '200':
+          description: Repartidores simulados
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    payload:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/MockQtyError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/mocks/orders:
+    get:
+      tags:
+      - Mocks
+      summary: Obtener pedidos simulados
+      description: No guarda nada en la base de datos. Genera pedidos con estados y prioridades permitidos, items, costo de envío y total. El campo delivery apunta a una entrega simulada o es null (pedidos cancelados o recién creados).
+      parameters:
+      - name: qty
+        in: query
+        required: false
+        description: 'Cantidad a generar: entero entre 1 y 100 (por defecto 5). Se documenta como texto para poder probar en Swagger UI los valores inválidos (abc, -5, 0, 500), que responden 400.'
+        schema:
+          type: string
+          example: '5'
+      responses:
+        '200':
+          description: Pedidos simulados
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    payload:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/MockQtyError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/mocks/deliveries:
+    get:
+      tags:
+      - Mocks
+      summary: Obtener entregas simuladas
+      description: 'No guarda nada en la base de datos. Genera entregas coherentes con el estado de su pedido: las pendientes no tienen repartidor y las entregadas tienen deliveredAt.'
+      parameters:
+      - name: qty
+        in: query
+        required: false
+        description: 'Cantidad a generar: entero entre 1 y 100 (por defecto 5). Se documenta como texto para poder probar en Swagger UI los valores inválidos (abc, -5, 0, 500), que responden 400.'
+        schema:
+          type: string
+          example: '5'
+      responses:
+        '200':
+          description: Entregas simuladas
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    payload:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Delivery'
+        '400':
+          $ref: '#/components/responses/MockQtyError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/mocks/dataset:
+    get:
+      tags:
+      - Mocks
+      summary: Obtener un conjunto de datos relacionados
+      description: No guarda nada en la base de datos. Devuelve usuarios, repartidores, pedidos y entregas simulados cuyos ids se corresponden entre sí (cada pedido apunta a un cliente, cada entrega a su pedido y a un repartidor).
+      parameters:
+      - name: users
+        in: query
+        required: false
+        description: 'Cantidad de usuarios: entero entre 1 y 100 (por defecto 5). Se documenta como texto para poder probar en Swagger UI los valores inválidos (abc, -5, 0, 500), que responden 400.'
+        schema:
+          type: string
+          example: '5'
+      - name: drivers
+        in: query
+        required: false
+        description: 'Cantidad de repartidores: entero entre 1 y 100 (por defecto 5). Se documenta como texto para poder probar en Swagger UI los valores inválidos (abc, -5, 0, 500), que responden 400.'
+        schema:
+          type: string
+          example: '5'
+      - name: orders
+        in: query
+        required: false
+        description: 'Cantidad de pedidos: entero entre 1 y 100 (por defecto 5). Se documenta como texto para poder probar en Swagger UI los valores inválidos (abc, -5, 0, 500), que responden 400.'
+        schema:
+          type: string
+          example: '5'
+      responses:
+        '200':
+          description: Conjunto de datos simulados
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    payload:
+                      $ref: '#/components/schemas/MockDataset'
+        '400':
+          $ref: '#/components/responses/MockQtyError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/mocks/seed:
+    post:
+      tags:
+      - Mocks
+      summary: Cargar datos de prueba en MongoDB
+      description: 'Inserta datos simulados en la base. No espera body: los parámetros se envían por query (collection y qty). Los pedidos se generan para clientes que ya existen y las entregas para pedidos que todavía no tienen una, por eso el orden recomendado es users, drivers, orders y deliveries (o directamente all). Agrega datos, no borra nada.'
+      parameters:
+      - name: collection
+        in: query
+        required: false
+        description: 'Qué cargar: users (por defecto), drivers, orders, deliveries o all. Se documenta como texto para poder probar en Swagger UI un valor inválido (por ejemplo foo), que responde 400.'
+        schema:
+          type: string
+          example: users
+      - name: qty
+        in: query
+        required: false
+        description: 'Cantidad a insertar: entero entre 1 y 100 (por defecto 5). Se documenta como texto para poder probar en Swagger UI los valores inválidos (abc, -5, 0, 500), que responden 400.'
+        schema:
+          type: string
+          example: '5'
+      responses:
+        '201':
+          description: Datos insertados. Con una sola colección responde insertados y coleccion; con collection=all responde el detalle de cada colección en resultados.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/SeedSingleResult'
+                - $ref: '#/components/schemas/SeedAllResult'
+              examples:
+                Una colección:
+                  value:
+                    status: success
+                    insertados: 10
+                    coleccion: usuarios
+                Todas (collection=all):
+                  value:
+                    status: success
+                    coleccion: todas
+                    resultados:
+                    - insertados: 5
+                      coleccion: usuarios
+                    - insertados: 3
+                      coleccion: repartidores
+                    - insertados: 5
+                      coleccion: pedidos
+                    - insertados: 5
+                      coleccion: entregas
+        '400':
+          description: Cantidad inválida (no es un entero, es negativa o está fuera del rango 1 a 100) o colección inexistente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                QTY_NOT_INTEGER:
+                  summary: QTY_NOT_INTEGER
+                  value:
+                    status: error
+                    code: QTY_NOT_INTEGER
+                    message: La cantidad debe ser un número entero
+                    details:
+                    - field: qty
+                      received: abc
+                QTY_NEGATIVE:
+                  summary: QTY_NEGATIVE
+                  value:
+                    status: error
+                    code: QTY_NEGATIVE
+                    message: La cantidad no puede ser negativa
+                    details:
+                    - field: qty
+                      received: '-5'
+                      min: 1
+                QTY_OUT_OF_RANGE:
+                  summary: QTY_OUT_OF_RANGE
+                  value:
+                    status: error
+                    code: QTY_OUT_OF_RANGE
+                    message: La cantidad está fuera del rango permitido
+                    details:
+                    - field: qty
+                      received: '500'
+                      min: 1
+                      max: 100
+                INVALID_MOCK_COLLECTION:
+                  summary: INVALID_MOCK_COLLECTION
+                  value:
+                    status: error
+                    code: INVALID_MOCK_COLLECTION
+                    message: La colección indicada para el seed no es válida
+                    details:
+                    - field: collection
+                      received: foo
+                      allowed:
+                      - users
+                      - drivers
+                      - orders
+                      - deliveries
+                      - all
+        '409':
+          description: 'Falta cargar datos previos: no hay clientes para crear pedidos, ni pedidos sin entrega o repartidores para crear entregas'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                NO_CUSTOMERS_FOR_MOCK:
+                  summary: NO_CUSTOMERS_FOR_MOCK
+                  value:
+                    status: error
+                    code: NO_CUSTOMERS_FOR_MOCK
+                    message: No hay clientes en la base para generar pedidos. Ejecutá primero el seed de usuarios
+                    details: []
+                NO_PENDING_ORDERS_FOR_MOCK:
+                  summary: NO_PENDING_ORDERS_FOR_MOCK
+                  value:
+                    status: error
+                    code: NO_PENDING_ORDERS_FOR_MOCK
+                    message: No hay pedidos sin entrega. Ejecutá primero el seed de pedidos
+                    details: []
+                NO_DRIVERS_FOR_MOCK:
+                  summary: NO_DRIVERS_FOR_MOCK
+                  value:
+                    status: error
+                    code: NO_DRIVERS_FOR_MOCK
+                    message: No hay repartidores en la base. Ejecutá primero el seed de repartidores
+                    details: []
+        '500':
+          description: Falló la carga en MongoDB (por ejemplo, la base no está disponible)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                code: MOCK_SEED_FAILED
+                message: Falló la carga de datos de prueba en MongoDB
+                details:
+                - collection: users
+                  reason: connection closed

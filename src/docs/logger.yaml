@@ -1,0 +1,21 @@
+paths:
+  /api/logger/test:
+    get:
+      tags:
+      - Logger
+      summary: Probar los niveles del logger
+      description: 'HERRAMIENTA DE VALIDACIÓN, no es una funcionalidad de negocio. Genera un mensaje de cada nivel (debug, http, info, warning, error y fatal) para comprobar que el logger funciona: en la consola del servidor, en logs/error-AAAA-MM-DD.log (solo error y fatal) y en logs/combined-AAAA-MM-DD.log. Según el entorno algunos niveles se descartan (por ejemplo debug y http en production); la respuesta indica cuáles se registraron.'
+      responses:
+        '200':
+          description: Se generó un mensaje por nivel
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    payload:
+                      $ref: '#/components/schemas/LoggerTestResult'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
