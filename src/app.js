@@ -1,14 +1,22 @@
 import express from 'express';
 import cors from 'cors';
+import swaggerUi from 'swagger-ui-express';
 import apiRouter from './routes/index.js';
 import requestLogger from './middlewares/requestLogger.js';
 import routeNotFound from './middlewares/routeNotFound.js';
 import errorHandler from './middlewares/errorHandler.js';
-import logger from './utils/logger.js'
+import logger from './utils/logger.js';
+import swaggerSpec from './docs/swagger.config.js';
 
 const app = express();
 
 app.use(cors());
+
+app.get('/api/docs.json', (req, res) => res.json(swaggerSpec));
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    customSiteTitle: 'ShipNow API - Documentación'
+}));
+
 app.use(requestLogger);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
