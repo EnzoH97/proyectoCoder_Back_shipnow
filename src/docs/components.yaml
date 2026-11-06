@@ -1,0 +1,105 @@
+components:
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      description: Id de MongoDB (ObjectId de 24 caracteres hexadecimales)
+      schema:
+        type: string
+        example: 671a2b3c4d5e6f7890123456
+  responses:
+    InternalServerError:
+      description: Error interno del servidor (error inesperado)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: error
+            code: INTERNAL_SERVER_ERROR
+            message: Error interno del servidor
+            details: []
+    InvalidId:
+      description: El id enviado en la ruta no tiene formato válido
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: error
+            code: INVALID_ID
+            message: El id proporcionado no es válido
+            details:
+            - field: _id
+              received: abc
+    UserNotFound:
+      description: El usuario no existe
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: error
+            code: USER_NOT_FOUND
+            message: Usuario no encontrado
+            details: []
+    OrderNotFound:
+      description: El pedido no existe
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: error
+            code: ORDER_NOT_FOUND
+            message: Pedido no encontrado
+            details: []
+    DeliveryNotFound:
+      description: La entrega no existe
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: error
+            code: DELIVERY_NOT_FOUND
+            message: Entrega no encontrada
+            details: []
+    MockQtyError:
+      description: 'Cantidad inválida: no es un entero, es negativa o está fuera del rango permitido (1 a 100)'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            QTY_NOT_INTEGER:
+              summary: QTY_NOT_INTEGER
+              value:
+                status: error
+                code: QTY_NOT_INTEGER
+                message: La cantidad debe ser un número entero
+                details:
+                - field: qty
+                  received: abc
+            QTY_NEGATIVE:
+              summary: QTY_NEGATIVE
+              value:
+                status: error
+                code: QTY_NEGATIVE
+                message: La cantidad no puede ser negativa
+                details:
+                - field: qty
+                  received: '-5'
+                  min: 1
+            QTY_OUT_OF_RANGE:
+              summary: QTY_OUT_OF_RANGE
+              value:
+                status: error
+                code: QTY_OUT_OF_RANGE
+                message: La cantidad está fuera del rango permitido
+                details:
+                - field: qty
+                  received: '500'
+                  min: 1
+                  max: 100

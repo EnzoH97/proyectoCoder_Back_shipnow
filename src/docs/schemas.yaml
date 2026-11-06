@@ -1,0 +1,484 @@
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      description: Estructura única de todas las respuestas de error. Siempre la devuelve el middleware global de errores.
+      required:
+      - status
+      - code
+      - message
+      - details
+      properties:
+        status:
+          type: string
+          enum:
+          - error
+          example: error
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        message:
+          type: string
+          description: Descripción legible del error
+          example: Pedido no encontrado
+        details:
+          type: array
+          description: Información adicional (campo, valor recibido, valores permitidos). Es [] si no hay nada que agregar.
+          items:
+            type: object
+            additionalProperties: true
+          example: []
+    SuccessResponse:
+      type: object
+      description: Estructura de las respuestas exitosas. El contenido va en payload.
+      required:
+      - status
+      properties:
+        status:
+          type: string
+          enum:
+          - success
+          example: success
+        payload:
+          description: Datos devueltos (objeto, arreglo o resultado, según el endpoint)
+    SuccessMessage:
+      type: object
+      description: Respuesta exitosa que solo trae un mensaje (por ejemplo al eliminar).
+      required:
+      - status
+      - message
+      properties:
+        status:
+          type: string
+          enum:
+          - success
+          example: success
+        message:
+          type: string
+          example: Usuario eliminado
+    UserDocument:
+      type: object
+      properties:
+        name:
+          type: string
+          example: DNI
+        reference:
+          type: string
+          example: https://storage.example.com/documents/dni.pdf
+    UserSummary:
+      type: object
+      description: Datos resumidos de un usuario, tal como se muestran dentro de pedidos y entregas.
+      properties:
+        _id:
+          type: string
+          example: 671a2b3c4d5e6f7890123456
+        firstName:
+          type: string
+          example: Ana
+        lastName:
+          type: string
+          example: Gómez
+        email:
+          type: string
+          format: email
+          example: ana@example.com
+    User:
+      type: object
+      required:
+      - _id
+      - firstName
+      - lastName
+      - email
+      - password
+      - role
+      properties:
+        _id:
+          type: string
+          example: 671a2b3c4d5e6f7890123456
+        firstName:
+          type: string
+          example: Ana
+        lastName:
+          type: string
+          example: Gómez
+        email:
+          type: string
+          format: email
+          description: Único. Se guarda en minúsculas.
+          example: ana@example.com
+        password:
+          type: string
+          description: Hoy la API la guarda y la devuelve tal cual (sin hash).
+          example: coder123
+        role:
+          $ref: '#/components/schemas/UserRole'
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserDocument'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    UserCreate:
+      type: object
+      required:
+      - firstName
+      - lastName
+      - email
+      - password
+      description: Datos para crear un usuario. El rol admin no se puede crear desde la API (responde 403).
+      properties:
+        firstName:
+          type: string
+          example: Ana
+        lastName:
+          type: string
+          example: Gómez
+        email:
+          type: string
+          format: email
+          example: ana@example.com
+        password:
+          type: string
+          example: coder123
+        role:
+          allOf:
+          - $ref: '#/components/schemas/UserRole'
+          description: Por defecto customer. Con admin responde 403.
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserDocument'
+    UserUpdate:
+      type: object
+      description: 'Campos a modificar. Todos son opcionales: solo se actualizan los que se envían.'
+      properties:
+        firstName:
+          type: string
+          example: Ana María
+        lastName:
+          type: string
+          example: Gómez
+        email:
+          type: string
+          format: email
+          example: ana.nueva@example.com
+        password:
+          type: string
+          example: nuevaClave123
+        role:
+          $ref: '#/components/schemas/UserRole'
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserDocument'
+    OrderItem:
+      type: object
+      required:
+      - name
+      - quantity
+      - price
+      properties:
+        name:
+          type: string
+          example: Zapatillas running
+        quantity:
+          type: integer
+          minimum: 1
+          example: 2
+        price:
+          type: number
+          minimum: 0
+          description: Precio unitario
+          example: 45000
+    Order:
+      type: object
+      required:
+      - _id
+      - customer
+      - items
+      - deliveryAddress
+      - status
+      - priority
+      properties:
+        _id:
+          type: string
+          example: 671a2b3c4d5e6f7890123456
+        customer:
+          type: string
+          description: Id del usuario cliente
+          example: 671a2b3c4d5e6f7890123456
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        deliveryAddress:
+          type: string
+          example: San Martín 1234, Mendoza
+        declaredValue:
+          type: number
+          description: Valor declarado. Si no se envía, es la suma de los items.
+          example: 90000
+        shippingCost:
+          type: number
+          description: Se calcula en el servidor (10 en development; 50 + 1% del valor declarado en production).
+          example: 10
+        total:
+          type: number
+          description: Suma de items + costo de envío (se calcula en el servidor)
+          example: 90010
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        priority:
+          $ref: '#/components/schemas/DeliveryPriority'
+        delivery:
+          type: string
+          nullable: true
+          description: Id de la entrega asociada (null si todavía no tiene)
+          example: null
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    OrderDetail:
+      type: object
+      description: 'Pedido tal como lo devuelven los GET: el cliente y la entrega vienen completados.'
+      allOf:
+      - $ref: '#/components/schemas/Order'
+      - type: object
+        properties:
+          customer:
+            $ref: '#/components/schemas/UserSummary'
+          delivery:
+            nullable: true
+            allOf:
+            - $ref: '#/components/schemas/Delivery'
+    OrderCreate:
+      type: object
+      required:
+      - customer
+      - items
+      - deliveryAddress
+      description: Datos para crear un pedido. El estado siempre arranca en created y el total y el costo de envío los calcula el servidor.
+      properties:
+        customer:
+          type: string
+          description: Id de un usuario existente
+          example: 671a2b3c4d5e6f7890123456
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        deliveryAddress:
+          type: string
+          example: San Martín 1234, Mendoza
+        declaredValue:
+          type: number
+          example: 90000
+        priority:
+          allOf:
+          - $ref: '#/components/schemas/DeliveryPriority'
+          description: Por defecto normal
+    OrderUpdate:
+      type: object
+      description: Campos a modificar. Todos son opcionales.
+      properties:
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        priority:
+          $ref: '#/components/schemas/DeliveryPriority'
+        deliveryAddress:
+          type: string
+          example: Belgrano 456, Godoy Cruz
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/OrderItem'
+    Delivery:
+      type: object
+      required:
+      - _id
+      - order
+      - status
+      - priority
+      properties:
+        _id:
+          type: string
+          example: 671a2b3c4d5e6f7890123456
+        order:
+          type: string
+          description: Id del pedido
+          example: 671a2b3c4d5e6f7890123456
+        driver:
+          type: string
+          nullable: true
+          description: Id del repartidor (null si todavía no tiene)
+          example: 671a2b3c4d5e6f7890123456
+        status:
+          $ref: '#/components/schemas/DeliveryStatus'
+        priority:
+          $ref: '#/components/schemas/DeliveryPriority'
+        assignedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deliveredAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    DeliveryDetail:
+      type: object
+      description: 'Entrega tal como la devuelven los GET: el pedido y el repartidor vienen completados.'
+      allOf:
+      - $ref: '#/components/schemas/Delivery'
+      - type: object
+        properties:
+          order:
+            $ref: '#/components/schemas/Order'
+          driver:
+            nullable: true
+            allOf:
+            - $ref: '#/components/schemas/UserSummary'
+    DeliveryCreate:
+      type: object
+      required:
+      - order
+      description: Datos para crear una entrega. El repartidor es opcional, pero si se envía tiene que existir y tener rol driver.
+      properties:
+        order:
+          type: string
+          description: Id de un pedido existente
+          example: 671a2b3c4d5e6f7890123456
+        driver:
+          type: string
+          description: Id de un usuario con rol driver
+          example: 671a2b3c4d5e6f7890123456
+        status:
+          allOf:
+          - $ref: '#/components/schemas/DeliveryStatus'
+          description: Por defecto pending
+        priority:
+          allOf:
+          - $ref: '#/components/schemas/DeliveryPriority'
+          description: Por defecto normal
+        assignedAt:
+          type: string
+          format: date-time
+        deliveredAt:
+          type: string
+          format: date-time
+    DeliveryUpdate:
+      type: object
+      description: Campos a modificar. Todos son opcionales.
+      properties:
+        driver:
+          type: string
+          example: 671a2b3c4d5e6f7890123456
+        status:
+          $ref: '#/components/schemas/DeliveryStatus'
+        priority:
+          $ref: '#/components/schemas/DeliveryPriority'
+        assignedAt:
+          type: string
+          format: date-time
+        deliveredAt:
+          type: string
+          format: date-time
+    MockDataset:
+      type: object
+      description: Conjunto de datos simulados relacionados entre sí (los ids se corresponden).
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        drivers:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        orders:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+        deliveries:
+          type: array
+          items:
+            $ref: '#/components/schemas/Delivery'
+    SeedSingleResult:
+      type: object
+      description: Resultado de cargar una sola colección.
+      required:
+      - status
+      - insertados
+      - coleccion
+      properties:
+        status:
+          type: string
+          enum:
+          - success
+        insertados:
+          type: integer
+          example: 10
+        coleccion:
+          type: string
+          example: usuarios
+    SeedAllResult:
+      type: object
+      description: 'Resultado de collection=all: un resultado por colección, en el orden en que se cargaron.'
+      required:
+      - status
+      - coleccion
+      - resultados
+      properties:
+        status:
+          type: string
+          enum:
+          - success
+        coleccion:
+          type: string
+          example: todas
+        resultados:
+          type: array
+          items:
+            type: object
+            properties:
+              insertados:
+                type: integer
+                example: 5
+              coleccion:
+                type: string
+                example: usuarios
+    LoggerTestResult:
+      type: object
+      description: Resultado de la prueba del logger.
+      properties:
+        activeLevel:
+          allOf:
+          - $ref: '#/components/schemas/LogLevel'
+          description: Nivel mínimo activo según el entorno
+        levels:
+          type: array
+          items:
+            type: object
+            properties:
+              level:
+                $ref: '#/components/schemas/LogLevel'
+              message:
+                type: string
+                example: '[logger-test] Mensaje de prueba de nivel info'
+              registered:
+                type: boolean
+                description: true si el nivel activo lo registra; false si se descarta (por ejemplo debug y http en production)
+                example: true
