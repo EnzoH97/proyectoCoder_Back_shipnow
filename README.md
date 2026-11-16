@@ -8,6 +8,8 @@ Registra lo que ocurre en el servidor con un **logger centralizado (Winston)**, 
 
 La API está documentada con **Swagger / OpenAPI** y se puede consultar y probar desde el navegador en `/api/docs` (ver [9. Documentación de la API (Swagger)](#9-documentación-de-la-api-swagger)).
 
+Tiene una **suite de tests funcionales** con Mocha, Chai y Supertest, con su propio entorno y su propia base de datos (ver [10. Testing funcional](#10-testing-funcional-mocha-chai-y-supertest)).
+
 Incluye un **módulo de mocking** (`/api/mocks`) que genera datos simulados (usuarios, repartidores, pedidos y entregas) y permite cargarlos en MongoDB de forma controlada, sin tener que crearlos a mano. Los datos respetan los modelos reales, las relaciones entre entidades y las constantes del proyecto (roles, estados y prioridades).
 
 ## 2. Tecnologías utilizadas
@@ -24,6 +26,10 @@ Incluye un **módulo de mocking** (`/api/mocks`) que genera datos simulados (usu
 | swagger-jsdoc | Arma la especificación OpenAPI a partir de los archivos `.yaml` de `src/docs/` |
 | swagger-ui-express | Sirve Swagger UI (documentación interactiva) |
 | nodemon | Reinicio automático en desarrollo |
+| mocha | Organiza y ejecuta los tests (devDependency) |
+| chai | Validaciones (`expect`) de los tests (devDependency) |
+| supertest | Peticiones HTTP a la app Express sin abrir un puerto (devDependency) |
+| cross-env | Define `NODE_ENV=test` igual en Windows, macOS y Linux (devDependency) |
 
 ## 3. Estructura del proyecto
 
@@ -60,8 +66,20 @@ shipnow/
 │       ├── errors.js               # ErrorDictionary (diccionario de errores) y clase AppError
 │       ├── logger.js               # Configuración única de Winston (niveles, formato, consola, archivos y rotación)
 │       └── mockData.js             # Datos base y helpers de azar para el mocking
+├── tests/                          # Tests funcionales (Mocha + Chai + Supertest), un archivo por recurso
+│   ├── setup.js                    # Hooks globales: verifica que sea la base de test, conecta y la borra al terminar
+│   ├── helpers/index.js            # Datos de prueba controlados, limpieza y validación del formato de error
+│   ├── app.test.js                 # /api/health y rutas inexistentes
+│   ├── users.test.js               # /api/users
+│   ├── orders.test.js              # /api/orders (incluye actualización de estados)
+│   ├── deliveries.test.js          # /api/deliveries (incluye actualización de estados)
+│   ├── mocks.test.js               # /api/mocks
+│   ├── logger.test.js              # /api/logger/test
+│   └── swagger.test.js             # /api/docs, /api/docs.json y coherencia con la documentación
 ├── logs/                           # Archivos de log generados por la app (se ignoran en Git, solo se versiona .gitkeep)
-├── .env.example                    # Ejemplo de variables de entorno
+├── .env.example                    # Ejemplo de variables de entorno de desarrollo
+├── .env.test.example               # Ejemplo de variables de entorno de testing
+├── .mocharc.json                   # Configuración de Mocha (dónde están los tests y el archivo de setup)
 ├── .gitignore
 ├── package.json
 └── README.md
@@ -112,6 +130,7 @@ Si todo está bien, la consola muestra `MongoDB conectado` y `Servidor en puerto
 | --- | --- |
 | `npm run dev` | Inicia el servidor con nodemon (desarrollo) |
 | `npm start` | Inicia el servidor con Node |
+| `npm test` | Corre la suite de tests funcionales (ver [10. Testing funcional](#10-testing-funcional-mocha-chai-y-supertest)) |
 
 ### Probar rápidamente
 
@@ -128,7 +147,7 @@ Copiá `.env.example` a `.env` y completá los valores. El archivo `.env` no se 
 | `MONGODB_URI` | Sí | URI de conexión, por ejemplo `mongodb://localhost:27017/shipnow` |
 | `JWT_SECRET` | Sí | Secreto de la aplicación |
 | `PORT` | No | Puerto del servidor (por defecto `8080`) |
-| `NODE_ENV` | No | `development` o `production` (por defecto `development`) |
+| `NODE_ENV` | No | `development`, `test` o `production` (por defecto `development`). `test` lo define `npm test` |
 | `LOG_LEVEL` | No | Nivel mínimo de log: `fatal`, `error`, `warning`, `info`, `http` o `debug`. Si no se define: `debug` en `development` e `info` en `production` |
 
 Si falta una variable obligatoria, la app no arranca: registra un log `fatal` indicando cuál falta y termina.
@@ -678,3 +697,98 @@ Los errores documentados son los mismos del [diccionario de errores](#7-manejo-d
 - **Logger:** `GET /api/logger/test` es una herramienta interna para validar el logger. Genera mensajes en todos los niveles y no forma parte de la lógica de negocio.
 - **Contraseñas:** la API guarda y devuelve la contraseña tal cual (sin hash), y la documentación lo refleja en el schema `User`.
 - **Mantenimiento:** si se agrega o cambia un endpoint, hay que actualizar el archivo `.yaml` correspondiente de `src/docs/`.
+
+## 10. Testing funcional (Mocha, Chai y Supertest)
+
+La suite prueba los endpoints de la API de punta a punta (router → controller → service → repository → MongoDB), tanto los casos exitosos como los errores esperados, comprobando el status HTTP, la estructura del body y el formato de error definido en el módulo de errores.
+
+### Herramientas
+
+| Herramienta | Para qué se usa |
+| --- | --- |
+| **Mocha** | Organiza (`describe`, `it`, hooks) y ejecuta los tests |
+| **Chai** | Valida los resultados (`expect(...).to...`) |
+| **Supertest** | Hace las peticiones HTTP directamente a la app de Express, sin levantar un servidor ni abrir un puerto |
+| **cross-env** | Define `NODE_ENV=test` en el script `npm test` de forma igual en Windows, macOS y Linux |
+
+Se instalan como `devDependencies`. Requieren **Node.js 20.19+ o 22.12+** (lo exige Mocha 12).
+
+### Cómo ejecutar los tests
+
+```bash
+# 1. Instalar dependencias (incluye las de desarrollo)
+npm install
+
+# 2. Crear el archivo de variables de entorno de testing
+cp .env.test.example .env.test      # en Windows PowerShell: Copy-Item .env.test.example .env.test
+
+# 3. Tener MongoDB corriendo (ver "Base de datos de testing")
+
+# 4. Correr la suite completa
+npm test
+```
+
+Para correr un solo archivo: `npx cross-env NODE_ENV=test mocha tests/orders.test.js`.
+
+> No corras `npx mocha` a secas: sin `NODE_ENV=test` los tests se niegan a arrancar (es a propósito, ver la protección más abajo). Usá siempre `npm test`.
+
+### Base de datos de testing
+
+**Sí, se requiere una base de datos de testing, separada de la de desarrollo.** Los tests crean y borran datos, así que nunca pueden usar la base `shipnow` de desarrollo.
+
+- Por defecto se usa una MongoDB local con la base `shipnow-test` (`mongodb://localhost:27017/shipnow-test`). Una forma rápida de tenerla es con Docker: `docker run -d --rm --name mongo-test -p 27017:27017 mongo:7`.
+- También sirve una base de Atlas, siempre que el nombre de la base en la URI contenga `test`.
+- **Protección:** `tests/setup.js` aborta la suite si `NODE_ENV` no es `test` o si el nombre de la base en `MONGODB_URI` no contiene `test`. Así es imposible borrar por error la base de desarrollo.
+- Al terminar la suite se elimina por completo la base de test (`dropDatabase`).
+
+### Variables de entorno
+
+Con `NODE_ENV=test`, `src/config/config.js` carga el archivo **`.env.test`** en lugar de `.env`. El archivo `.env.test` no se sube a Git; se versiona el ejemplo `.env.test.example`.
+
+| Variable | Obligatoria | Descripción |
+| --- | --- | --- |
+| `MONGODB_URI` | Sí | URI de la base de **test**. El nombre de la base debe contener `test`, por ejemplo `mongodb://localhost:27017/shipnow-test` |
+| `JWT_SECRET` | Sí | Secreto de la aplicación. Sin él, crear pedidos responde `CONFIG_ERROR` |
+| `NODE_ENV` | La define `npm test` | Debe ser `test` (lo configura el script con `cross-env`) |
+| `PORT` | No | No hace falta: Supertest no abre ningún puerto |
+| `LOG_LEVEL` | No | En test el logger queda en silencio y no escribe archivos en `logs/` |
+
+### App separada del servidor
+
+`src/app.js` arma Express y lo exporta, sin llamar a `listen`. `src/server.js` es el que conecta a MongoDB y abre el puerto. Gracias a esa separación, los tests hacen `import app from '../src/app.js'` y se lo pasan a Supertest; la conexión a la base de los tests la maneja `tests/setup.js`.
+
+### Módulos cubiertos
+
+| Archivo | Endpoints | Casos exitosos | Casos de error |
+| --- | --- | --- | --- |
+| `app.test.js` | `GET /api/health` y rutas inexistentes | Status `ok` y timestamp válido | `404 ROUTE_NOT_FOUND` (ruta inexistente, método no definido, recurso inexistente) |
+| `users.test.js` | `GET/POST /api/users`, `GET/PUT/DELETE /api/users/:id` | Listado, alta, consulta por id, actualización y baja | `VALIDATION_ERROR`, `EMAIL_ALREADY_EXISTS`, `ADMIN_CREATION_FORBIDDEN`, `INVALID_USER_ROLE`, `DUPLICATE_KEY`, `USER_NOT_FOUND`, `INVALID_ID`, `INVALID_JSON` |
+| `orders.test.js` | `GET/POST /api/orders`, `GET/PUT/DELETE /api/orders/:id` | Listado, alta con valores calculados, consulta por id, **actualización de cada estado**, baja | `ORDER_WITHOUT_ITEMS`, `INVALID_ORDER_ITEMS`, `VALIDATION_ERROR`, `INVALID_PRIORITY`, `CUSTOMER_NOT_FOUND`, `INVALID_ORDER_STATUS`, `ORDER_NOT_FOUND`, `INVALID_ID`, `INVALID_JSON` |
+| `deliveries.test.js` | `GET/POST /api/deliveries`, `GET/PUT/DELETE /api/deliveries/:id` | Listado, alta, consulta por id, **actualización de cada estado**, baja | `ORDER_NOT_FOUND`, `DRIVER_NOT_FOUND`, `USER_NOT_DRIVER`, `INVALID_DELIVERY_STATUS`, `INVALID_PRIORITY`, `DELIVERY_NOT_FOUND`, `INVALID_ID`, `INVALID_JSON` |
+| `mocks.test.js` | `GET /api/mocks/users`, `/drivers`, `/orders`, `/deliveries`, `/dataset` y `POST /api/mocks/seed` | Datos simulados válidos y coherentes, sin guardar en la base; seed de cada colección y de `all` | `QTY_NOT_INTEGER`, `QTY_NEGATIVE`, `QTY_OUT_OF_RANGE` (incluye `0`, `-5`, `abc`, `2.5` y `500`), `INVALID_MOCK_COLLECTION`, `NO_CUSTOMERS_FOR_MOCK`, `NO_PENDING_ORDERS_FOR_MOCK`, `NO_DRIVERS_FOR_MOCK` |
+| `logger.test.js` | `GET /api/logger/test` | Un mensaje por nivel y `registered` coherente con el nivel activo | `404 ROUTE_NOT_FOUND` ante un método o ruta no definidos |
+| `swagger.test.js` | `GET /api/docs/`, `GET /api/docs.json` | Swagger UI en HTML y especificación OpenAPI con los 22 endpoints | `404 ROUTE_NOT_FOUND` ante un método no definido, y coherencia documentación ↔ comportamiento real |
+
+No se testean los `500` documentados (`INTERNAL_SERVER_ERROR` y `MOCK_SEED_FAILED`, la falla de MongoDB durante el seed) porque exigirían romper la conexión a la base en pleno test.
+
+### Qué valida cada test
+
+Ningún test se queda en "responde": todos comprueban **status HTTP + estructura del body**.
+
+- **Éxito:** `{ status: 'success', payload }` o `{ status: 'success', message }`, con las propiedades importantes del recurso (por ejemplo, en un pedido: `customer`, `items`, `declaredValue`, `shippingCost`, `total`, `status`, `priority`) y, cuando corresponde, que el dato **quedó guardado en la base**.
+- **Error:** el helper `expectApiError` (en `tests/helpers/index.js`) verifica el status esperado, que el body tenga exactamente `status`, `code`, `message` y `details`, y que `code` y `message` sean los del `ErrorDictionary` de `src/utils/errors.js`. Además, cada test revisa los `details` que corresponden (campo, valor recibido, valores permitidos).
+
+### Datos de prueba y limpieza
+
+- **Datos controlados y repetibles:** los tests crean sus propios datos con las funciones de `tests/helpers/index.js` (`createUser`, `createDriver`, `createOrder`, `createDelivery`). Por ejemplo, para probar un pedido primero se crea un cliente válido. Los montos son fijos (2 × 9000 + 1 × 4000 = 22000) y los emails son únicos y del dominio `shipnow-test.com`. Nunca se usan datos reales ni cargados a mano.
+- **Limpieza antes de cada test:** cada archivo tiene un `beforeEach(clearDatabase)` que vacía `users`, `orders` y `deliveries`. Cada test arranca desde cero, por eso **no dependen del estado previo de la base ni del orden de ejecución**.
+- **Limpieza final:** el hook global `afterAll` de `tests/setup.js` elimina la base de test completa y cierra la conexión.
+- Los tests de la API **sí escriben** en la base de test, pero nunca en la de desarrollo. La suite se puede correr varias veces seguidas sin borrar nada a mano.
+
+### Coherencia con Swagger
+
+Todo lo que se documentó en el Módulo 5 tiene su test: los 22 endpoints, con su respuesta exitosa y sus errores `4xx`, están cubiertos en los archivos por recurso. Además, `swagger.test.js` toma los **ejemplos de error de la especificación** (`/api/docs.json`), hace la petición real y compara que la respuesta sea idéntica. Si la documentación y el comportamiento se separan, el test falla.
+
+### Logger en test
+
+Con `NODE_ENV=test` el logger (`src/utils/logger.js`) queda en silencio y no crea archivos en `logs/`: la salida de Mocha queda limpia y los tests no ensucian los logs de desarrollo.
