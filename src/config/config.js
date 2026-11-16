@@ -1,7 +1,10 @@
 import dotenv from 'dotenv';
 import { NODE_ENVS, LOG_LEVELS } from "../constants/constants.js";
 
-dotenv.config();
+// En test se carga .env.test (base de datos y variables propias); en cualquier otro entorno, .env.
+// NODE_ENV=test lo define el script "npm test".
+const envFile = process.env.NODE_ENV === NODE_ENVS.TEST ? '.env.test' : '.env';
+dotenv.config({ path: envFile });
 
 const requiredEnvVars = ['MONGODB_URI', 'JWT_SECRET'];
 
@@ -28,5 +31,6 @@ const config = {
     // sin LOG_LEVEL: desarrollo registra todo (debug) y producción desde info
     logLevel: process.env.LOG_LEVEL || (nodeEnv === NODE_ENVS.PRODUCTION ? LOG_LEVELS.INFO : LOG_LEVELS.DEBUG)
 };
+
 
 export default config;

@@ -1,5 +1,6 @@
 export const NODE_ENVS = Object.freeze({
     DEVELOPMENT: 'development',
+    TEST: 'test',
     PRODUCTION: 'production'
 });
 

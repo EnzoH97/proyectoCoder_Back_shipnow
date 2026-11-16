@@ -14,6 +14,7 @@ const MAX_FILE_SIZE = '10m';   // rota también si un archivo supera este tamañ
 const MAX_FILE_AGE = '14d';    // se conservan 14 días de historial
 
 const isProduction = config.nodeEnv === NODE_ENVS.PRODUCTION;
+const isTest = config.nodeEnv === NODE_ENVS.TEST;
 const isValidLevel = Object.values(LOG_LEVELS).includes(config.logLevel);
 const activeLevel = isValidLevel ? config.logLevel : (isProduction ? LOG_LEVELS.INFO : LOG_LEVELS.DEBUG);
 
@@ -26,9 +27,9 @@ winston.addColors({
     [LOG_LEVELS.DEBUG]: 'blue'
 });
 
-const LEVEL = Symbol.for('level'); // nivel original, sin colores
+const LEVEL = Symbol.for('level');
 
-// 2026-08-01 10:12:03 [info]    mensaje {"dato":"extra"}
+
 const lineFormat = winston.format.printf((info) => {
     const { timestamp, level, message, stack, ...meta } = info;
     const padding = ' '.repeat(Math.max(1, 10 - (info[LEVEL].length + 2)));
@@ -45,7 +46,7 @@ const lineFormat = winston.format.printf((info) => {
 
 const timestamp = winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' });
 
-// consola: con colores en desarrollo, sin colores en producción
+
 const consoleFormat = isProduction
     ? winston.format.combine(timestamp, lineFormat)
     : winston.format.combine(timestamp, winston.format.colorize(), lineFormat);
@@ -64,18 +65,23 @@ const rotatingFile = (name, level) => new DailyRotateFile({
     format: fileFormat
 });
 
+// En test el logger queda en silencio y no crea archivos en logs/: la salida de mocha se mantiene limpia
+// y la suite no ensucia la carpeta de logs del desarrollo.
+const transports = [new winston.transports.Console({ format: consoleFormat })];
+
+if (!isTest) {
+    transports.push(
+        rotatingFile('error', LOG_LEVELS.ERROR),
+
+        rotatingFile('combined')
+    );
+}
+
 const logger = winston.createLogger({
     levels: LOG_LEVEL_PRIORITIES,
     level: activeLevel,
-    transports: [
-        new winston.transports.Console({ format: consoleFormat }),
-
-        // error-AAAA-MM-DD.log: solo "error" y "fatal"
-        rotatingFile('error', LOG_LEVELS.ERROR),
-
-        // combined-AAAA-MM-DD.log: todo lo que habilita el nivel activo
-        rotatingFile('combined')
-    ]
+    silent: isTest,
+    transports
 });
 
 if (!isValidLevel) {
@@ -84,8 +90,6 @@ if (!isValidLevel) {
     });
 }
 
-// Cierra el logger esperando a que se escriban los archivos y recién después termina el proceso.
-// Se usa en fallas fatales, para no perder el último mensaje con un process.exit() directo.
 export const flushAndExit = (code = 1) => {
     let exited = false;
     const exit = () => {
@@ -97,7 +101,7 @@ export const flushAndExit = (code = 1) => {
 
     logger.once('finish', () => setTimeout(exit, 200));
     logger.end();
-    setTimeout(exit, 2000); // por si algún transporte nunca avisa que terminó
+    setTimeout(exit, 2000);
 };
 
 export default logger;
