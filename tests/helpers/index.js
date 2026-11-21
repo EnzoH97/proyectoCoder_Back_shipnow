@@ -1,4 +1,7 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { expect } from 'chai';
+import config from '../../src/config/config.js';
 import User from '../../src/models/user.model.js';
 import Order from '../../src/models/order.model.js';
 import Delivery from '../../src/models/delivery.model.js';
@@ -6,7 +9,8 @@ import {
     USER_ROLES,
     ORDER_STATUS,
     DELIVERY_STATUS,
-    DELIVERY_PRIORITY
+    DELIVERY_PRIORITY,
+    UPLOAD_LIMITS
 } from '../../src/constants/constants.js';
 
 // ---------- ids para los casos de error ----------
@@ -125,3 +129,73 @@ export function expectApiError(response, expectedStatus, errorDefinition) {
 export function findDetail(body, field) {
     return body.details.find((detail) => detail.field === field);
 }
+
+// ---------- archivos de prueba (carga de archivos) ----------
+// Se crean en memoria: no hace falta tener archivos reales en el repositorio.
+
+// Metadatos que se guardan por cada archivo subido
+export const FILE_METADATA_KEYS = ['originalName', 'fileName', 'path', 'mimeType', 'size', 'type', 'uploadedAt'];
+
+export const PDF_FILE = Object.freeze({
+    content: Buffer.from('%PDF-1.4\n% archivo de prueba\n%%EOF\n'),
+    filename: 'dni.pdf',
+    contentType: 'application/pdf'
+});
+
+export const PNG_FILE = Object.freeze({
+    // firma de un PNG: alcanza para la prueba, el servidor valida el tipo declarado
+    content: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    filename: 'foto.png',
+    contentType: 'image/png'
+});
+
+// tipo no permitido
+export const TEXT_FILE = Object.freeze({
+    content: Buffer.from('notas de prueba'),
+    filename: 'notas.txt',
+    contentType: 'text/plain'
+});
+
+// 1 byte más que el máximo permitido
+export const oversizedFile = () => ({
+    content: Buffer.alloc(UPLOAD_LIMITS.MAX_FILE_SIZE + 1, 1),
+    filename: 'enorme.pdf',
+    contentType: 'application/pdf'
+});
+
+// opciones de .attach() de Supertest para un archivo de prueba
+export const attachOptions = (file) => ({ filename: file.filename, contentType: file.contentType });
+
+// Borra la carpeta de uploads de TEST (uploads/test). Nunca toca la de desarrollo: config.uploadsDir
+// vale uploads/test cuando NODE_ENV=test y tests/setup.js verifica que sea así antes de correr.
+export async function removeUploads() {
+    await fs.rm(config.uploadsDir, { recursive: true, force: true });
+}
+
+// Lista todos los archivos que hay guardados (en cualquier subcarpeta de uploads/test)
+export async function listStoredFiles() {
+    const found = [];
+
+    async function walk(directory) {
+        let entries;
+        try {
+            entries = await fs.readdir(directory, { withFileTypes: true });
+        } catch {
+            return; // la carpeta todavía no existe: no hay archivos
+        }
+        for (const entry of entries) {
+            const fullPath = path.join(directory, entry.name);
+            if (entry.isDirectory()) {
+                await walk(fullPath);
+            } else {
+                found.push(fullPath);
+            }
+        }
+    }
+
+    await walk(config.uploadsDir);
+    return found;
+}
+
+export const fileExists = (filePath) => fs.access(filePath).then(() => true, () => false);
+export const readFile = (filePath) => fs.readFile(filePath);

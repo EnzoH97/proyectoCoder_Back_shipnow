@@ -2,14 +2,23 @@ import { expect } from 'chai';
 import request from 'supertest';
 import app from '../src/app.js';
 import { ErrorDictionary } from '../src/utils/errors.js';
+import { USER_DOCUMENT_TYPES, DOCUMENT_TYPES } from '../src/constants/constants.js';
 import {
     clearDatabase,
     createUser,
+    createOrder,
+    createDelivery,
     buildOrderData,
     expectApiError,
-    NON_EXISTENT_ID
+    NON_EXISTENT_ID,
+    PDF_FILE,
+    TEXT_FILE,
+    attachOptions,
+    oversizedFile,
+    removeUploads
 } from './helpers/index.js';
 
+// Los 24 endpoints documentados (src/docs/*.yaml): los 22 del Módulo 5 y los 2 de carga de archivos del Módulo 7
 const DOCUMENTED_OPERATIONS = [
     ['get', '/api/users'], ['post', '/api/users'],
     ['get', '/api/users/{id}'], ['put', '/api/users/{id}'], ['delete', '/api/users/{id}'],
@@ -19,7 +28,8 @@ const DOCUMENTED_OPERATIONS = [
     ['get', '/api/deliveries/{id}'], ['put', '/api/deliveries/{id}'], ['delete', '/api/deliveries/{id}'],
     ['get', '/api/mocks/users'], ['get', '/api/mocks/drivers'], ['get', '/api/mocks/orders'],
     ['get', '/api/mocks/deliveries'], ['get', '/api/mocks/dataset'], ['post', '/api/mocks/seed'],
-    ['get', '/api/logger/test']
+    ['get', '/api/logger/test'],
+    ['post', '/api/users/{id}/documents'], ['post', '/api/deliveries/{id}/proofs']
 ];
 
 describe('Swagger (/api/docs)', () => {
@@ -58,7 +68,7 @@ describe('Swagger (/api/docs)', () => {
             expect(spec.tags.map((tag) => tag.name)).to.have.members(['Users', 'Orders', 'Deliveries', 'Mocks', 'Logger']);
         });
 
-        it('documenta los 22 endpoints, cada uno con su tag y una respuesta exitosa', () => {
+        it('documenta los 24 endpoints, cada uno con su tag y una respuesta exitosa', () => {
             DOCUMENTED_OPERATIONS.forEach(([method, path]) => {
                 const operation = spec.paths?.[path]?.[method];
                 expect(operation, `${method.toUpperCase()} ${path} está documentado`).to.be.an('object');
@@ -105,6 +115,7 @@ describe('Swagger (/api/docs)', () => {
         });
 
         beforeEach(clearDatabase);
+        afterEach(removeUploads);
 
         [
             { resource: 'users', path: '/api/users/{id}' },
@@ -188,6 +199,93 @@ describe('Swagger (/api/docs)', () => {
             const notFound = await request(app).post('/api/orders').send(buildOrderData(NON_EXISTENT_ID));
             expect(notFound.status).to.equal(404);
             expect(notFound.body).to.deep.equal(exampleOf(post['404']));
+        });
+
+        it('los endpoints de carga están documentados como multipart/form-data con el campo de archivo obligatorio', () => {
+            const documents = spec.paths['/api/users/{id}/documents'].post.requestBody;
+            const documentSchema = documents.content['multipart/form-data'].schema;
+            expect(documents.required).to.be.true;
+            expect(documentSchema.required).to.deep.equal(['document']);
+            expect(documentSchema.properties.document).to.include({ type: 'string', format: 'binary' });
+
+            expect(documentSchema.properties.type.enum).to.deep.equal(USER_DOCUMENT_TYPES);
+            expect(documentSchema.properties.type.default).to.equal(DOCUMENT_TYPES.USER_DOCUMENT);
+
+            const proofs = spec.paths['/api/deliveries/{id}/proofs'].post.requestBody;
+            const proofSchema = proofs.content['multipart/form-data'].schema;
+            expect(proofs.required).to.be.true;
+            expect(proofSchema.required).to.deep.equal(['proof']);
+            expect(proofSchema.properties.proof).to.include({ type: 'string', format: 'binary' });
+        });
+
+        it('POST /api/users/{id}/documents: los errores documentados coinciden con los reales', async () => {
+            const customer = await createUser();
+            const responses = spec.paths['/api/users/{id}/documents'].post.responses;
+            const documented400 = examplesOf(responses['400']);
+            const send = (userId, { file = PDF_FILE, fieldName = 'document', type } = {}) => {
+                const req = request(app).post(`/api/users/${userId}/documents`);
+                if (type) req.field('type', type);
+                return req.attach(fieldName, file.content, attachOptions(file));
+            };
+
+            const requests = {
+                FILE_REQUIRED: () => request(app).post(`/api/users/${customer._id}/documents`).field('type', DOCUMENT_TYPES.USER_DOCUMENT),
+                INVALID_FILE_TYPE: () => send(customer._id, { file: TEXT_FILE }),
+                INVALID_DOCUMENT_TYPE: () => send(customer._id, { type: documented400.INVALID_DOCUMENT_TYPE.value.details[0].received }),
+                UNEXPECTED_FILE_FIELD: () => send(customer._id, { fieldName: documented400.UNEXPECTED_FILE_FIELD.value.details[0].field }),
+                USER_NOT_DRIVER: () => send(customer._id, { type: DOCUMENT_TYPES.DRIVER_LICENSE }),
+                INVALID_ID: () => send(documented400.INVALID_ID.value.details[0].received)
+            };
+            expect(Object.keys(documented400)).to.have.members(Object.keys(requests));
+
+            for (const [code, makeRequest] of Object.entries(requests)) {
+                const response = await makeRequest();
+                expect(response.status, `status de ${code}`).to.equal(400);
+                expect(response.body, `cuerpo de ${code}`).to.deep.equal(documented400[code].value);
+            }
+
+            const notFound = await send(NON_EXISTENT_ID);
+            expect(notFound.status).to.equal(404);
+            expect(notFound.body).to.deep.equal(exampleOf(responses['404']));
+
+            const tooLarge = await send(customer._id, { file: oversizedFile() });
+            expect(tooLarge.status).to.equal(413);
+            expect(tooLarge.body).to.deep.equal(exampleOf(responses['413']));
+        });
+
+        it('POST /api/deliveries/{id}/proofs: los errores documentados coinciden con los reales', async () => {
+            const customer = await createUser();
+            const order = await createOrder(customer._id);
+            const delivery = await createDelivery(order._id);
+            const responses = spec.paths['/api/deliveries/{id}/proofs'].post.responses;
+            const documented400 = examplesOf(responses['400']);
+            const send = (deliveryId, { file = PDF_FILE, fieldName = 'proof' } = {}) => (
+                request(app)
+                    .post(`/api/deliveries/${deliveryId}/proofs`)
+                    .attach(fieldName, file.content, attachOptions(file))
+            );
+
+            const requests = {
+                FILE_REQUIRED: () => request(app).post(`/api/deliveries/${delivery._id}/proofs`).field('nota', 'sin archivo'),
+                INVALID_FILE_TYPE: () => send(delivery._id, { file: TEXT_FILE }),
+                UNEXPECTED_FILE_FIELD: () => send(delivery._id, { fieldName: documented400.UNEXPECTED_FILE_FIELD.value.details[0].field }),
+                INVALID_ID: () => send(documented400.INVALID_ID.value.details[0].received)
+            };
+            expect(Object.keys(documented400)).to.have.members(Object.keys(requests));
+
+            for (const [code, makeRequest] of Object.entries(requests)) {
+                const response = await makeRequest();
+                expect(response.status, `status de ${code}`).to.equal(400);
+                expect(response.body, `cuerpo de ${code}`).to.deep.equal(documented400[code].value);
+            }
+
+            const notFound = await send(NON_EXISTENT_ID);
+            expect(notFound.status).to.equal(404);
+            expect(notFound.body).to.deep.equal(exampleOf(responses['404']));
+
+            const tooLarge = await send(delivery._id, { file: oversizedFile() });
+            expect(tooLarge.status).to.equal(413);
+            expect(tooLarge.body).to.deep.equal(exampleOf(responses['413']));
         });
 
         it('PUT /api/orders/{id}: el 400 documentado de estado inválido coincide con el real', async () => {

@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises';
 import mongoose from 'mongoose';
 import config from '../src/config/config.js';
 import { NODE_ENVS } from '../src/constants/constants.js';
@@ -44,12 +45,25 @@ export const mochaHooks = {
             );
         }
 
+        // lo mismo con los archivos: los tests escriben en uploads/test, nunca en la carpeta de desarrollo
+        if (!looksLikeTestDatabase(config.uploadsDir)) {
+            throw new Error(
+                `Tests abortados: la carpeta de uploads "${config.uploadsDir}" no parece de test. ` +
+                'En test tiene que ser uploads/test (no definas UPLOADS_DIR en .env.test).'
+            );
+        }
+
         await mongoose.connect(config.mongoUri);
 
         await Promise.all([User.init(), Order.init(), Delivery.init()]);
     },
 
     async afterAll() {
+        // limpieza de los archivos subidos durante los tests (carpeta de test, verificada en beforeAll)
+        if (looksLikeTestDatabase(config.uploadsDir)) {
+            await fs.rm(config.uploadsDir, { recursive: true, force: true });
+        }
+
         // afterAll corre aunque beforeAll haya fallado: si nunca hubo conexión, no hay nada que borrar.
         if (mongoose.connection.readyState !== 1) {
             return;
