@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import app from './app.js';
 import config,  { validateConfig } from './config/config.js';
 import logger, { flushAndExit } from './utils/logger.js';
+import { ensureUploadFolders } from './utils/fileStorage.js';
 
 process.on('unhandledRejection', (reason) => {
     logger.fatal('Promesa rechazada sin manejar', { cause: reason?.message ?? String(reason), stack: reason?.stack });
@@ -33,6 +34,9 @@ async function startServer() {
         logger.fatal('Falló la conexión inicial a MongoDB', { cause: error.message });
         return flushAndExit(1);
     }
+
+    // estructura de carpetas para los archivos subidos (uploads/documents, licenses, proofs y tmp)
+    ensureUploadFolders();
 
     app.listen(config.port, () => {
         logger.info(`Servidor ShipNow escuchando en el puerto ${config.port} (entorno: ${config.nodeEnv}, nivel de log: ${logger.level})`);

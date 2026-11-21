@@ -19,6 +19,16 @@ class UsersController {
         }
     }
     
+    // POST /api/users/:id/documents (multipart/form-data: archivo en "document" y "type" opcional)
+    async uploadDocument(req, res, next) {
+        try {
+            const updatedUser = await usersService.addDocument(req.params.id, req.file, req.body?.type);
+            res.status(201).json({ status: 'success', message: 'Documento cargado correctamente', payload: updatedUser });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     async create(req, res, next) {
         try {
             const newUser = await usersService.create(req.body);

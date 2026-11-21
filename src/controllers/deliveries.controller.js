@@ -29,6 +29,16 @@ class DeliveriesController {
         }
     }
 
+    // POST /api/deliveries/:id/proofs (multipart/form-data: archivo en "proof")
+    async uploadProof(req, res, next) {
+        try {
+            const updatedDelivery = await deliveriesService.addProof(req.params.id, req.file);
+            res.status(201).json({ status: 'success', message: 'Comprobante cargado correctamente', payload: updatedDelivery });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     async update(req, res, next) {
         try {
             const updatedDelivery = await deliveriesService.update(req.params.id, req.body);
