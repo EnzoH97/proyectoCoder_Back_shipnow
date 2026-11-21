@@ -55,15 +55,41 @@ components:
         message:
           type: string
           example: Usuario eliminado
-    UserDocument:
+    FileMetadata:
       type: object
+      description: Metadatos de un archivo subido. El archivo se guarda en disco (carpeta uploads/); en la base de datos solo van estos datos.
+      required:
+      - originalName
+      - fileName
+      - path
+      - mimeType
+      - size
+      - type
+      - uploadedAt
       properties:
-        name:
+        originalName:
           type: string
-          example: DNI
-        reference:
+          description: Nombre con el que el cliente subió el archivo
+          example: dni.pdf
+        fileName:
           type: string
-          example: https://storage.example.com/documents/dni.pdf
+          description: Nombre único generado por el servidor
+          example: 1763500000000-7f3c9d1e-2b4a-4c6e-9a1f-0d8e5b7c3a21.pdf
+        path:
+          type: string
+          description: Ruta donde quedó guardado el archivo en el servidor
+          example: uploads/documents/1763500000000-7f3c9d1e-2b4a-4c6e-9a1f-0d8e5b7c3a21.pdf
+        mimeType:
+          $ref: '#/components/schemas/FileMimeType'
+        size:
+          type: integer
+          description: Tamaño en bytes
+          example: 1022223
+        type:
+          $ref: '#/components/schemas/DocumentType'
+        uploadedAt:
+          type: string
+          format: date-time
     UserSummary:
       type: object
       description: Datos resumidos de un usuario, tal como se muestran dentro de pedidos y entregas.
@@ -113,8 +139,9 @@ components:
           $ref: '#/components/schemas/UserRole'
         documents:
           type: array
+          description: Documentos cargados con POST /api/users/{id}/documents (solo metadatos)
           items:
-            $ref: '#/components/schemas/UserDocument'
+            $ref: '#/components/schemas/FileMetadata'
         createdAt:
           type: string
           format: date-time
@@ -128,7 +155,7 @@ components:
       - lastName
       - email
       - password
-      description: Datos para crear un usuario. El rol admin no se puede crear desde la API (responde 403).
+      description: Datos para crear un usuario. El rol admin no se puede crear desde la API (responde 403). Los documentos no se envían acá, se cargan con POST /api/users/{id}/documents.
       properties:
         firstName:
           type: string
@@ -147,10 +174,6 @@ components:
           allOf:
           - $ref: '#/components/schemas/UserRole'
           description: Por defecto customer. Con admin responde 403.
-        documents:
-          type: array
-          items:
-            $ref: '#/components/schemas/UserDocument'
     UserUpdate:
       type: object
       description: 'Campos a modificar. Todos son opcionales: solo se actualizan los que se envían.'
@@ -170,10 +193,6 @@ components:
           example: nuevaClave123
         role:
           $ref: '#/components/schemas/UserRole'
-        documents:
-          type: array
-          items:
-            $ref: '#/components/schemas/UserDocument'
     OrderItem:
       type: object
       required:
@@ -332,6 +351,11 @@ components:
           type: string
           format: date-time
           nullable: true
+        proofs:
+          type: array
+          description: Comprobantes de entrega cargados con POST /api/deliveries/{id}/proofs (solo metadatos)
+          items:
+            $ref: '#/components/schemas/FileMetadata'
         createdAt:
           type: string
           format: date-time

@@ -246,3 +246,125 @@ paths:
           $ref: '#/components/responses/UserNotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /api/users/{id}/documents:
+    post:
+      tags:
+      - Users
+      summary: Cargar un documento del usuario
+      description: |
+        Sube un documento del usuario (DNI, licencia de conducir, etc.) y lo asocia a él.
+        El archivo se guarda en el servidor (`uploads/documents` o `uploads/licenses`, según el tipo) y en la base de datos se registran solo sus metadatos.
+
+        - **Content-Type:** `multipart/form-data`
+        - **Campo del archivo:** `document` (obligatorio, un solo archivo). Si se envía con otro nombre responde `UNEXPECTED_FILE_FIELD`.
+        - **Campo adicional `type`** (opcional): `user_document` (por defecto) o `driver_license`. La licencia de conducir solo la puede cargar un usuario con rol `driver`.
+        - **Archivos aceptados:** PDF, JPG, PNG y WEBP, de hasta 5 MB.
+      parameters:
+      - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - document
+              properties:
+                type:
+                  type: string
+                  enum:
+                  - user_document
+                  - driver_license
+                  default: user_document
+                  description: Tipo de documento. Opcional (por defecto user_document).
+                document:
+                  type: string
+                  format: binary
+                  description: Archivo a subir (PDF, JPG, PNG o WEBP, máximo 5 MB)
+      responses:
+        '201':
+          description: Documento cargado. Devuelve el usuario actualizado, con el nuevo documento al final de `documents`.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/SuccessResponse'
+                - type: object
+                  properties:
+                    message:
+                      type: string
+                      example: Documento cargado correctamente
+                    payload:
+                      $ref: '#/components/schemas/User'
+        '400':
+          description: 'Falta el archivo, el tipo de archivo o de documento no es válido, el archivo llegó en otro campo, la licencia es de un usuario que no es repartidor, el id no tiene formato válido o el multipart está mal formado (UPLOAD_ERROR)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                FILE_REQUIRED:
+                  summary: FILE_REQUIRED
+                  value:
+                    status: error
+                    code: FILE_REQUIRED
+                    message: Es obligatorio enviar un archivo
+                    details:
+                    - field: document
+                INVALID_FILE_TYPE:
+                  summary: INVALID_FILE_TYPE
+                  value:
+                    status: error
+                    code: INVALID_FILE_TYPE
+                    message: El tipo de archivo no está permitido
+                    details:
+                    - field: document
+                      received: text/plain
+                      allowed:
+                      - application/pdf
+                      - image/jpeg
+                      - image/png
+                      - image/webp
+                INVALID_DOCUMENT_TYPE:
+                  summary: INVALID_DOCUMENT_TYPE
+                  value:
+                    status: error
+                    code: INVALID_DOCUMENT_TYPE
+                    message: El tipo de documento no es válido
+                    details:
+                    - field: type
+                      received: pasaporte
+                      allowed:
+                      - user_document
+                      - driver_license
+                UNEXPECTED_FILE_FIELD:
+                  summary: UNEXPECTED_FILE_FIELD
+                  value:
+                    status: error
+                    code: UNEXPECTED_FILE_FIELD
+                    message: El archivo se envió en un campo que no corresponde
+                    details:
+                    - field: archivo
+                      expected: document
+                USER_NOT_DRIVER:
+                  summary: USER_NOT_DRIVER
+                  value:
+                    status: error
+                    code: USER_NOT_DRIVER
+                    message: El usuario indicado no tiene rol de repartidor
+                    details: []
+                INVALID_ID:
+                  summary: INVALID_ID
+                  value:
+                    status: error
+                    code: INVALID_ID
+                    message: El id proporcionado no es válido
+                    details:
+                    - field: _id
+                      received: abc
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '413':
+          $ref: '#/components/responses/FileTooLarge'
+        '500':
+          $ref: '#/components/responses/FileSaveError'

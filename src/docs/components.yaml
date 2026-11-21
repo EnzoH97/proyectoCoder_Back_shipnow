@@ -103,3 +103,28 @@ components:
                   received: '500'
                   min: 1
                   max: 100
+    FileTooLarge:
+      description: El archivo supera el tamaño máximo permitido (5 MB)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: error
+            code: INVALID_FILE_SIZE
+            message: El archivo supera el tamaño máximo permitido
+            details:
+            - field: document
+              maxSizeBytes: 5242880
+              maxSizeMB: 5
+    FileSaveError:
+      description: No se pudo guardar el archivo en el servidor (por ejemplo, disco lleno o sin permisos)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: error
+            code: FILE_SAVE_ERROR
+            message: Error al guardar el archivo en el servidor
+            details: []

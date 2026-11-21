@@ -6,6 +6,8 @@ import {
     ORDER_STATUS,
     DELIVERY_STATUS,
     DELIVERY_PRIORITY,
+    DOCUMENT_TYPES,
+    ALLOWED_MIME_TYPES,
     LOG_LEVELS
 } from '../constants/constants.js';
 
@@ -39,9 +41,9 @@ const swaggerOptions = {
             }
         ],
         tags: [
-            { name: 'Users', description: 'Gestión de usuarios (clientes, repartidores, tiendas y administradores)' },
+            { name: 'Users', description: 'Gestión de usuarios (clientes, repartidores, tiendas y administradores) y carga de sus documentos' },
             { name: 'Orders', description: 'Gestión de pedidos' },
-            { name: 'Deliveries', description: 'Gestión de entregas de los pedidos' },
+            { name: 'Deliveries', description: 'Gestión de entregas de los pedidos y carga de sus comprobantes' },
             { name: 'Mocks', description: 'Datos simulados para pruebas: devolverlos sin guardar o cargarlos en MongoDB' },
             { name: 'Logger', description: 'Herramienta interna para validar el logger (no es parte del negocio)' }
         ],
@@ -51,6 +53,8 @@ const swaggerOptions = {
                 OrderStatus: { type: 'string', enum: Object.values(ORDER_STATUS), example: ORDER_STATUS.CREATED },
                 DeliveryStatus: { type: 'string', enum: Object.values(DELIVERY_STATUS), example: DELIVERY_STATUS.PENDING },
                 DeliveryPriority: { type: 'string', enum: Object.values(DELIVERY_PRIORITY), example: DELIVERY_PRIORITY.NORMAL },
+                DocumentType: { type: 'string', enum: Object.values(DOCUMENT_TYPES), example: DOCUMENT_TYPES.USER_DOCUMENT },
+                FileMimeType: { type: 'string', enum: Object.keys(ALLOWED_MIME_TYPES), example: 'application/pdf' },
                 LogLevel: { type: 'string', enum: Object.values(LOG_LEVELS), example: LOG_LEVELS.INFO },
                 ErrorCode: {
                     type: 'string',
