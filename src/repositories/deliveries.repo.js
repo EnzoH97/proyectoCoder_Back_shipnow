@@ -27,6 +27,12 @@ class DeliveriesRepository {
         return Delivery.findByIdAndUpdate(id, deliveryData, { new: true });
     }
 
+    async addProof(id, proof) {
+        return Delivery.findByIdAndUpdate(id, { $push: { proofs: proof } }, { new: true, runValidators: true })
+        .populate('order')
+        .populate('driver', 'firstName lastName email');
+    }
+
     async delete(id) {
         return Delivery.findByIdAndDelete(id);
     }

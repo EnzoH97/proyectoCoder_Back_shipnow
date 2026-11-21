@@ -25,6 +25,10 @@ class UsersRepository {
         return User.findByIdAndUpdate(id, userData, { new: true });
     }
 
+    async addDocument(id, document) {
+        return User.findByIdAndUpdate(id, { $push: { documents: document } }, { new: true, runValidators: true });
+    }
+
     async delete(id) {
         return User.findByIdAndDelete(id);
     }

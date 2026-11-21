@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { DELIVERY_STATUS, DELIVERY_PRIORITY } from '../constants/constants.js';
+import fileSchema from './file.schema.js';
 
 const deliverySchema = new mongoose.Schema({
     order: {
@@ -29,6 +30,10 @@ const deliverySchema = new mongoose.Schema({
     deliveredAt: {
         type: Date,
         default: null
+    },
+    proofs: {
+        type: [fileSchema],
+        default: []
     }
 }, {
     timestamps: true
