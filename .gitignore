@@ -6,7 +6,8 @@ logs/*
 !logs/.gitkeep
 *.log
 
-uploads/*
+uploads/**
+!uploads/**/
 !uploads/**/.gitkeep
 coverage
 npm-debug.log*
