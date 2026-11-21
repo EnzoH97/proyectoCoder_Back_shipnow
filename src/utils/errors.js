@@ -1,4 +1,3 @@
-
 export const ErrorDictionary = Object.freeze({
     // ---------- genéricos ----------
     INTERNAL_SERVER_ERROR: { statusCode: 500, code: 'INTERNAL_SERVER_ERROR', message: 'Error interno del servidor' },
@@ -29,6 +28,15 @@ export const ErrorDictionary = Object.freeze({
     USER_NOT_DRIVER: { statusCode: 400, code: 'USER_NOT_DRIVER', message: 'El usuario indicado no tiene rol de repartidor' },
     INVALID_DELIVERY_STATUS: { statusCode: 400, code: 'INVALID_DELIVERY_STATUS', message: 'El estado de la entrega no es válido' },
 
+    // ---------- archivos ----------
+    FILE_REQUIRED: { statusCode: 400, code: 'FILE_REQUIRED', message: 'Es obligatorio enviar un archivo' },
+    INVALID_FILE_TYPE: { statusCode: 400, code: 'INVALID_FILE_TYPE', message: 'El tipo de archivo no está permitido' },
+    INVALID_FILE_SIZE: { statusCode: 413, code: 'INVALID_FILE_SIZE', message: 'El archivo supera el tamaño máximo permitido' },
+    UNEXPECTED_FILE_FIELD: { statusCode: 400, code: 'UNEXPECTED_FILE_FIELD', message: 'El archivo se envió en un campo que no corresponde' },
+    INVALID_DOCUMENT_TYPE: { statusCode: 400, code: 'INVALID_DOCUMENT_TYPE', message: 'El tipo de documento no es válido' },
+    UPLOAD_ERROR: { statusCode: 400, code: 'UPLOAD_ERROR', message: 'No se pudo procesar la carga del archivo' },
+    FILE_SAVE_ERROR: { statusCode: 500, code: 'FILE_SAVE_ERROR', message: 'Error al guardar el archivo en el servidor' },
+
     // ---------- mocks ----------
     QTY_NOT_INTEGER: { statusCode: 400, code: 'QTY_NOT_INTEGER', message: 'La cantidad debe ser un número entero' },
     QTY_NEGATIVE: { statusCode: 400, code: 'QTY_NEGATIVE', message: 'La cantidad no puede ser negativa' },
@@ -53,4 +61,3 @@ class AppError extends Error {
 }
 
 export default AppError;
-

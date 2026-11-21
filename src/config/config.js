@@ -28,9 +28,10 @@ const config = {
     mongoUri: process.env.MONGODB_URI,
     jwtSecret: process.env.JWT_SECRET,
     nodeEnv,
+    // carpeta donde se guardan los archivos subidos (en test usa otra, para no tocar los de desarrollo)
+    uploadsDir: (process.env.UPLOADS_DIR || (nodeEnv === NODE_ENVS.TEST ? 'uploads/test' : 'uploads')).replace(/\\/g, '/'),
     // sin LOG_LEVEL: desarrollo registra todo (debug) y producción desde info
     logLevel: process.env.LOG_LEVEL || (nodeEnv === NODE_ENVS.PRODUCTION ? LOG_LEVELS.INFO : LOG_LEVELS.DEBUG)
 };
-
 
 export default config;

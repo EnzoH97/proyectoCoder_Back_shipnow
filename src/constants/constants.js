@@ -39,6 +39,39 @@ export const DOCUMENT_TYPES = Object.freeze({
     DELIVERY_PROOF: 'delivery_proof'
 });
 
+// Carga de archivos (Multer)
+// Tipos de documento que se pueden cargar para un usuario (delivery_proof es de las entregas)
+export const USER_DOCUMENT_TYPES = Object.freeze([
+    DOCUMENT_TYPES.USER_DOCUMENT,
+    DOCUMENT_TYPES.DRIVER_LICENSE
+]);
+
+// Nombre del campo de archivo que espera cada endpoint (multipart/form-data)
+export const UPLOAD_FIELDS = Object.freeze({
+    USER_DOCUMENT: 'document',
+    DELIVERY_PROOF: 'proof'
+});
+
+export const UPLOAD_LIMITS = Object.freeze({
+    MAX_FILE_SIZE: 5 * 1024 * 1024 // 5 MB
+});
+
+// Tipos de archivo aceptados y la extensión con la que se guarda cada uno
+export const ALLOWED_MIME_TYPES = Object.freeze({
+    'application/pdf': '.pdf',
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/webp': '.webp'
+});
+
+// Subcarpetas de uploads/: los archivos llegan a TMP y, una vez validados, se mueven a la carpeta de su tipo
+export const UPLOAD_FOLDERS = Object.freeze({
+    TMP: 'tmp',
+    [DOCUMENT_TYPES.USER_DOCUMENT]: 'documents',
+    [DOCUMENT_TYPES.DRIVER_LICENSE]: 'licenses',
+    [DOCUMENT_TYPES.DELIVERY_PROOF]: 'proofs'
+});
+
 // Relación de estados: estado del pedido -> estado de la entrega que le corresponde.
 // null = el pedido no tiene entrega (todavía, o nunca si fue cancelado).
 export const DELIVERY_STATUS_BY_ORDER_STATUS = Object.freeze({
